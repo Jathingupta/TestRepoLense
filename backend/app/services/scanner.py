@@ -21,9 +21,17 @@ def facts_py(src):
             out["imports"].extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             prefix = "." * node.level
-            out["imports"].append(prefix + (node.module or ""))
-            # "from . import sibling" can refer to sibling modules.
-            if node.level and not node.module:
+            module_name = prefix + (node.module or "")
+            out["imports"].append(module_name)
+            # "from package import module" and relative sibling imports
+            # should be considered as possible local module dependencies.
+            if node.module:
+                out["imports"].extend(
+                    module_name + "." + alias.name
+                    for alias in node.names
+                    if alias.name != "*"
+                )
+            elif node.level:
                 out["imports"].extend(prefix + alias.name for alias in node.names)
         elif isinstance(node, ast.ClassDef):
             out["classes"].append(node.name)
