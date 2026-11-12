@@ -342,7 +342,8 @@ def documentation_agent(state):
             "manifests",
             "routes",
             "database_tables",
-            "imports"
+            "imports",
+            "dependency_graph"
         )
 
         evidence = {
@@ -461,7 +462,7 @@ def diagram(architecture, scan):
             f'    More["{len(nodes) - len(visible_nodes)} additional files omitted from this view"]'
         )
 
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 def run_agents(repo, scan):
