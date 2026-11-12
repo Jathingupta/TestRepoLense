@@ -57,3 +57,25 @@ def test_scanner_resolves_relative_javascript_import(tmp_path):
         and edge["target"] == "src/utils/helper.ts"
         for edge in edges
     )
+
+
+def test_scanner_resolves_python_import_from_nested_source_root(tmp_path):
+    package = tmp_path / "backend" / "app"
+    (package / "services").mkdir(parents=True)
+    (package / "main.py").write_text(
+        "from app.services import billing\n",
+        encoding="utf-8",
+    )
+    (package / "services" / "billing.py").write_text(
+        "def calculate_total():\n    return 42\n",
+        encoding="utf-8",
+    )
+
+    result = scan_repository(tmp_path, 100, 10000, 100000, True)
+    edges = result["dependency_graph"]["edges"]
+
+    assert any(
+        edge["source"] == "backend/app/main.py"
+        and edge["target"] == "backend/app/services/billing.py"
+        for edge in edges
+    )
