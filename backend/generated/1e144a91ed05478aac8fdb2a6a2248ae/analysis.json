@@ -1,0 +1,1021 @@
+{
+  "repository": "uber",
+  "architecture": {
+    "summary": "Uber is a mobile ride‑hailing application built with Expo React Native. It uses Clerk for user authentication, Stripe for payment processing, and Neondatabase serverless for backend data storage. The app includes map integration, driver and rider interfaces, and a bottom‑sheet UI for ride details.",
+    "components": [
+      {
+        "name": "CustomButton",
+        "description": "Reusable button component used throughout the app for actions such as sign‑in, booking, and payment. Located at `components/CustomButton.tsx`."
+      },
+      {
+        "name": "DriverCard",
+        "description": "Displays driver information (photo, rating, vehicle) in ride listings. Located at `components/DriverCard.tsx`."
+      },
+      {
+        "name": "GoogleTextInput",
+        "description": "Autocomplete input for addresses using Google Places API, used in pickup/drop‑off selection. Located at `components/GoogleTextInput.tsx`."
+      },
+      {
+        "name": "InputField",
+        "description": "Generic text input component with validation, used in forms like sign‑up and payment. Located at `components/InputField.tsx`."
+      },
+      {
+        "name": "Map",
+        "description": "Map view component that shows user location, driver location, and route directions. Depends on `react-native-maps` and `react-native-maps-directions`. Located at `components/Map.tsx`."
+      },
+      {
+        "name": "OAuth",
+        "description": "Handles third‑party authentication flows (e.g., Google) via Clerk. Located at `components/OAuth.tsx`."
+      },
+      {
+        "name": "Payment",
+        "description": "Stripe integration component for collecting card details and processing payments. Located at `components/Payment.tsx`."
+      },
+      {
+        "name": "RideCard",
+        "description": "Shows ride details (pickup, drop‑off, fare estimate) in the ride history and current ride screens. Located at `components/RideCard.tsx`."
+      }
+    ],
+    "flows": [
+      "User Authentication Flow – uses Clerk (`@clerk/clerk-expo`) and OAuth component to sign users in.",
+      "Ride Booking Flow – user selects pickup and drop‑off via `GoogleTextInput`, confirms with `CustomButton`, and the app shows a `Map` with route.",
+      "Payment Flow – after ride completion, the `Payment` component collects card info via Stripe (`@stripe/stripe-react-native`) and processes the transaction.",
+      "Driver Matching Flow – the app queries the Neondatabase serverless backend (`@neondatabase/serverless`) for nearby drivers and displays them using `DriverCard`.",
+      "Location Tracking Flow – continuous location updates via `expo-location` are shown on the `Map` component and sent to the backend."
+    ],
+    "risks": [
+      "Third‑party authentication dependency: reliance on Clerk may expose user data to external service risks.",
+      "Payment processing security: integration with Stripe requires secure handling of card data; any misconfiguration could lead to PCI compliance issues.",
+      "Location data privacy: continuous GPS tracking via `expo-location` must be handled with user consent and secure storage.",
+      "Serverless database reliability: Neondatabase serverless may have availability or latency issues that affect ride matching.",
+      "Offline functionality: the app may not function correctly without network connectivity, impacting user experience.",
+      "Dependency updates: frequent updates to Expo, React Native, and third‑party libraries could introduce breaking changes."
+    ]
+  },
+  "scan": {
+    "file_count": 50,
+    "total_bytes_scanned": 148005,
+    "truncated": false,
+    "languages": {
+      ".tsx": 26,
+      ".ts": 15,
+      ".js": 4,
+      ".json": 4,
+      ".md": 1
+    },
+    "repository_tree": "./\n.vscode/\napp/\napp\\(api)/\napp\\(api)\\(stripe)/\napp\\(api)\\ride/\napp\\(auth)/\napp\\(root)/\napp\\(root)\\(tabs)/\nassets/\nassets\\fonts/\nassets\\icons/\nassets\\images/\ncomponents/\nconstants/\nlib/\nscripts/\nstore/\ntypes/",
+    "files": [
+      {
+        "path": ".eslintrc.js",
+        "language": ".js",
+        "bytes": 596,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "README.md",
+        "language": ".md",
+        "bytes": 56873,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app.json",
+        "language": ".json",
+        "bytes": 893,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "babel.config.js",
+        "language": ".js",
+        "bytes": 150,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "nativewind-env.d.ts",
+        "language": ".ts",
+        "bytes": 44,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "package.json",
+        "language": ".json",
+        "bytes": 2473,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "tailwind.config.js",
+        "language": ".js",
+        "bytes": 2294,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "tsconfig.json",
+        "language": ".json",
+        "bytes": 259,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": ".vscode/settings.json",
+        "language": ".json",
+        "bytes": 299,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/+html.tsx",
+        "language": ".tsx",
+        "bytes": 1495,
+        "facts": {
+          "imports": [
+            "expo-router/html",
+            "react"
+          ],
+          "classes": [],
+          "functions": [
+            "only",
+            "Root"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/+not-found.tsx",
+        "language": ".tsx",
+        "bytes": 663,
+        "facts": {
+          "imports": [
+            "expo-router",
+            "react-native"
+          ],
+          "classes": [],
+          "functions": [
+            "NotFoundScreen"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/_layout.tsx",
+        "language": ".tsx",
+        "bytes": 1967,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "expo-font",
+            "expo-router",
+            "expo-splash-screen",
+            "react",
+            "react-native",
+            "@/lib/auth"
+          ],
+          "classes": [],
+          "functions": [
+            "RootLayout"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/index.tsx",
+        "language": ".tsx",
+        "bytes": 294,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "expo-router"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(api)/driver+api.ts",
+        "language": ".ts",
+        "bytes": 430,
+        "facts": {
+          "imports": [
+            "@neondatabase/serverless"
+          ],
+          "classes": [],
+          "functions": [
+            "GET"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(api)/user+api.ts",
+        "language": ".ts",
+        "bytes": 846,
+        "facts": {
+          "imports": [
+            "@neondatabase/serverless"
+          ],
+          "classes": [],
+          "functions": [
+            "POST"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(api)/(stripe)/create+api.ts",
+        "language": ".ts",
+        "bytes": 1263,
+        "facts": {
+          "imports": [
+            "stripe"
+          ],
+          "classes": [],
+          "functions": [
+            "POST"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(api)/(stripe)/pay+api.ts",
+        "language": ".ts",
+        "bytes": 1098,
+        "facts": {
+          "imports": [
+            "stripe"
+          ],
+          "classes": [],
+          "functions": [
+            "POST"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(api)/ride/[id]+api.ts",
+        "language": ".ts",
+        "bytes": 1578,
+        "facts": {
+          "imports": [
+            "@neondatabase/serverless"
+          ],
+          "classes": [],
+          "functions": [
+            "GET"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(api)/ride/create+api.ts",
+        "language": ".ts",
+        "bytes": 1910,
+        "facts": {
+          "imports": [
+            "@neondatabase/serverless"
+          ],
+          "classes": [],
+          "functions": [
+            "POST"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(auth)/_layout.tsx",
+        "language": ".tsx",
+        "bytes": 355,
+        "facts": {
+          "imports": [
+            "expo-router"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(auth)/sign-in.tsx",
+        "language": ".tsx",
+        "bytes": 2923,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "expo-router",
+            "react",
+            "react-native",
+            "@/components/CustomButton",
+            "@/components/InputField",
+            "@/components/OAuth",
+            "@/constants"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(auth)/sign-up.tsx",
+        "language": ".tsx",
+        "bytes": 6554,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "expo-router",
+            "react",
+            "react-native",
+            "react-native-modal",
+            "@/components/CustomButton",
+            "@/components/InputField",
+            "@/components/OAuth",
+            "@/constants",
+            "@/lib/fetch"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(auth)/welcome.tsx",
+        "language": ".tsx",
+        "bytes": 2318,
+        "facts": {
+          "imports": [
+            "expo-router",
+            "react",
+            "react-native",
+            "react-native-safe-area-context",
+            "react-native-swiper",
+            "@/components/CustomButton",
+            "@/constants"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/_layout.tsx",
+        "language": ".tsx",
+        "bytes": 527,
+        "facts": {
+          "imports": [
+            "expo-router"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/book-ride.tsx",
+        "language": ".tsx",
+        "bytes": 4204,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "@stripe/stripe-react-native",
+            "react-native",
+            "@/components/Payment",
+            "@/components/RideLayout",
+            "@/constants",
+            "@/lib/utils",
+            "@/store"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/confirm-ride.tsx",
+        "language": ".tsx",
+        "bytes": 1121,
+        "facts": {
+          "imports": [
+            "expo-router",
+            "react-native",
+            "@/components/CustomButton",
+            "@/components/DriverCard",
+            "@/components/RideLayout",
+            "@/store"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/find-ride.tsx",
+        "language": ".tsx",
+        "bytes": 1530,
+        "facts": {
+          "imports": [
+            "expo-router",
+            "react-native",
+            "@/components/CustomButton",
+            "@/components/GoogleTextInput",
+            "@/components/RideLayout",
+            "@/constants",
+            "@/store"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/(tabs)/_layout.tsx",
+        "language": ".tsx",
+        "bytes": 2419,
+        "facts": {
+          "imports": [
+            "expo-router",
+            "react-native",
+            "@/constants"
+          ],
+          "classes": [],
+          "functions": [
+            "Layout"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/(tabs)/chat.tsx",
+        "language": ".tsx",
+        "bytes": 968,
+        "facts": {
+          "imports": [
+            "react-native",
+            "react-native-safe-area-context",
+            "@/constants"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/(tabs)/home.tsx",
+        "language": ".tsx",
+        "bytes": 4305,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "@clerk/clerk-expo",
+            "expo-location",
+            "expo-router",
+            "react",
+            "react-native",
+            "react-native-safe-area-context",
+            "@/components/GoogleTextInput",
+            "@/components/Map",
+            "@/components/RideCard",
+            "@/constants",
+            "@/lib/fetch",
+            "@/store",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/(tabs)/profile.tsx",
+        "language": ".tsx",
+        "bytes": 2296,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "react-native",
+            "react-native-safe-area-context",
+            "@/components/InputField"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "app/(root)/(tabs)/rides.tsx",
+        "language": ".tsx",
+        "bytes": 1708,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "react-native",
+            "react-native-safe-area-context",
+            "@/components/RideCard",
+            "@/constants",
+            "@/lib/fetch",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/CustomButton.tsx",
+        "language": ".tsx",
+        "bytes": 1517,
+        "facts": {
+          "imports": [
+            "react-native",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/DriverCard.tsx",
+        "language": ".tsx",
+        "bytes": 2187,
+        "facts": {
+          "imports": [
+            "react",
+            "react-native",
+            "@/constants",
+            "@/lib/utils",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/GoogleTextInput.tsx",
+        "language": ".tsx",
+        "bytes": 2479,
+        "facts": {
+          "imports": [
+            "react-native",
+            "react-native-google-places-autocomplete",
+            "@/constants",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/InputField.tsx",
+        "language": ".tsx",
+        "bytes": 1413,
+        "facts": {
+          "imports": [
+            "react-native",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/Map.tsx",
+        "language": ".tsx",
+        "bytes": 3777,
+        "facts": {
+          "imports": [
+            "react",
+            "react-native",
+            "react-native-maps",
+            "react-native-maps-directions",
+            "@/constants",
+            "@/lib/fetch",
+            "@/lib/map",
+            "@/store",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/OAuth.tsx",
+        "language": ".tsx",
+        "bytes": 1461,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "expo-router",
+            "react-native",
+            "@/components/CustomButton",
+            "@/constants",
+            "@/lib/auth"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/Payment.tsx",
+        "language": ".tsx",
+        "bytes": 4972,
+        "facts": {
+          "imports": [
+            "@clerk/clerk-expo",
+            "@stripe/stripe-react-native",
+            "expo-router",
+            "react",
+            "react-native",
+            "react-native-modal",
+            "@/components/CustomButton",
+            "@/constants",
+            "@/lib/fetch",
+            "@/store",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/RideCard.tsx",
+        "language": ".tsx",
+        "bytes": 3313,
+        "facts": {
+          "imports": [
+            "react-native",
+            "@/constants",
+            "@/lib/utils",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "components/RideLayout.tsx",
+        "language": ".tsx",
+        "bytes": 2166,
+        "facts": {
+          "imports": [
+            "@gorhom/bottom-sheet",
+            "expo-router",
+            "react",
+            "react-native",
+            "react-native-gesture-handler",
+            "@/components/Map",
+            "@/constants"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "constants/index.ts",
+        "language": ".ts",
+        "bytes": 2781,
+        "facts": {
+          "imports": [
+            "@/assets/icons/arrow-down.png",
+            "@/assets/icons/arrow-up.png",
+            "@/assets/icons/back-arrow.png",
+            "@/assets/icons/chat.png",
+            "@/assets/icons/check.png",
+            "@/assets/icons/close.png",
+            "@/assets/icons/dollar.png",
+            "@/assets/icons/email.png",
+            "@/assets/icons/eyecross.png",
+            "@/assets/icons/google.png",
+            "@/assets/icons/home.png",
+            "@/assets/icons/list.png",
+            "@/assets/icons/lock.png",
+            "@/assets/icons/map.png",
+            "@/assets/icons/marker.png",
+            "@/assets/icons/out.png",
+            "@/assets/icons/person.png",
+            "@/assets/icons/pin.png",
+            "@/assets/icons/point.png",
+            "@/assets/icons/profile.png",
+            "@/assets/icons/search.png",
+            "@/assets/icons/selected-marker.png",
+            "@/assets/icons/star.png",
+            "@/assets/icons/target.png",
+            "@/assets/icons/to.png",
+            "@/assets/images/check.png",
+            "@/assets/images/get-started.png",
+            "@/assets/images/message.png",
+            "@/assets/images/no-result.png",
+            "@/assets/images/onboarding1.png",
+            "@/assets/images/onboarding2.png",
+            "@/assets/images/onboarding3.png",
+            "@/assets/images/signup-car.png"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "lib/auth.ts",
+        "language": ".ts",
+        "bytes": 1896,
+        "facts": {
+          "imports": [
+            "expo-linking",
+            "expo-secure-store",
+            "@/lib/fetch"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "lib/fetch.ts",
+        "language": ".ts",
+        "bytes": 1090,
+        "facts": {
+          "imports": [
+            "react"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "lib/map.ts",
+        "language": ".ts",
+        "bytes": 3742,
+        "facts": {
+          "imports": [
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "lib/utils.ts",
+        "language": ".ts",
+        "bytes": 1187,
+        "facts": {
+          "imports": [
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [
+            "formatTime",
+            "formatDate"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "scripts/reset-project.js",
+        "language": ".js",
+        "bytes": 2062,
+        "facts": {
+          "imports": [
+            "react-native",
+            "expo-router"
+          ],
+          "classes": [],
+          "functions": [
+            "Index",
+            "RootLayout"
+          ],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "store/index.ts",
+        "language": ".ts",
+        "bytes": 1726,
+        "facts": {
+          "imports": [
+            "zustand",
+            "@/types/type"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "types/image.d.ts",
+        "language": ".ts",
+        "bytes": 384,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "types/type.d.ts",
+        "language": ".ts",
+        "bytes": 3199,
+        "facts": {
+          "imports": [
+            "react-native"
+          ],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      }
+    ],
+    "manifests": {
+      "package.json": "{\n  \"name\": \"uber\",\n  \"main\": \"expo-router/entry\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {\n    \"start\": \"expo start\",\n    \"reset-project\": \"node ./scripts/reset-project.js\",\n    \"android\": \"expo start --android\",\n    \"ios\": \"expo start --ios\",\n    \"web\": \"expo start --web\",\n    \"test\": \"jest --watchAll\",\n    \"lint\": \"expo lint\"\n  },\n  \"jest\": {\n    \"preset\": \"jest-expo\"\n  },\n  \"dependencies\": {\n    \"@clerk/clerk-expo\": \"^2.1.0\",\n    \"@expo/metro-runtime\": \"~3.2.1\",\n    \"@expo/vector-icons\": \"^14.0.2\",\n    \"@gorhom/bottom-sheet\": \"^4.6.4\",\n    \"@neondatabase/serverless\": \"^0.9.4\",\n    \"@react-native-community/clipboard\": \"^1.5.1\",\n    \"@react-navigation/native\": \"^6.0.2\",\n    \"@stripe/stripe-react-native\": \"^0.38.4\",\n    \"@twotalltotems/react-native-otp-input\": \"^1.3.11\",\n    \"expo\": \"~51.0.22\",\n    \"expo-constants\": \"~16.0.2\",\n    \"expo-font\": \"~12.0.9\",\n    \"expo-linking\": \"~6.3.1\",\n    \"expo-local-authentication\": \"^14.0.1\",\n    \"expo-location\": \"^17.0.1\",\n    \"expo-router\": \"~3.5.18\",\n    \"expo-secure-store\": \"^13.0.2\",\n    \"expo-splash-screen\": \"~0.27.5\",\n    \"expo-status-bar\": \"~1.12.1\",\n    \"expo-system-ui\": \"~3.0.7\",\n    \"expo-web-browser\": \"~13.0.3\",\n    \"i\": \"^0.3.7\",\n    \"nativewind\": \"^2.0.11\",\n    \"npm\": \"^10.8.2\",\n    \"react\": \"18.2.0\",\n    \"react-dom\": \"18.2.0\",\n    \"react-native\": \"^0.74.3\",\n    \"react-native-gesture-handler\": \"~2.16.1\",\n    \"react-native-google-places-autocomplete\": \"^2.5.6\",\n    \"react-native-keyboard-aware-scroll-view\": \"^0.9.5\",\n    \"react-native-maps\": \"^1.14.0\",\n    \"react-native-maps-directions\": \"^1.9.0\",\n    \"react-native-modal\": \"^13.0.1\",\n    \"react-native-reanimated\": \"~3.10.1\",\n    \"react-native-safe-area-context\": \"^4.10.5\",\n    \"react-native-screens\": \"3.31.1\",\n    \"react-native-swiper\": \"^1.6.0\",\n    \"react-native-web\": \"~0.19.10\",\n    \"stripe\": \"^16.7.0\",\n    \"zustand\": \"^4.5.4\"\n  },\n  \"devDependencies\": {\n    \"@babel/core\": \"^7.20.0\",\n    \"@types/jest\": \"^29.5.12\",\n    \"@types/react\": \"~18.2.45\",\n    \"@types/react-test-renderer\": \"^18.0.7\",\n    \"eslint\": \"^8.57.0\",\n    \"eslint-config-expo\": \"^7.0.0\",\n    \"eslint-config-prettier\": \"^9.1.0\",\n    \"eslint-plugin-import\": \"^2.29.1\",\n    \"eslint-plugin-prettier\": \"^5.2.1\",\n    \"jest\": \"^29.2.1\",\n    \"jest-expo\": \"~51.0.3\",\n    \"prettier\": \"^3.3.3\",\n    \"react-test-renderer\": \"18.2.0\",\n    \"tailwindcss\": \"3.3.2\",\n    \"typescript\": \"~5.3.3\"\n  },\n  \"private\": true\n}\n"
+    },
+    "imports": [
+      "@/assets/icons/arrow-down.png",
+      "@/assets/icons/arrow-up.png",
+      "@/assets/icons/back-arrow.png",
+      "@/assets/icons/chat.png",
+      "@/assets/icons/check.png",
+      "@/assets/icons/close.png",
+      "@/assets/icons/dollar.png",
+      "@/assets/icons/email.png",
+      "@/assets/icons/eyecross.png",
+      "@/assets/icons/google.png",
+      "@/assets/icons/home.png",
+      "@/assets/icons/list.png",
+      "@/assets/icons/lock.png",
+      "@/assets/icons/map.png",
+      "@/assets/icons/marker.png",
+      "@/assets/icons/out.png",
+      "@/assets/icons/person.png",
+      "@/assets/icons/pin.png",
+      "@/assets/icons/point.png",
+      "@/assets/icons/profile.png",
+      "@/assets/icons/search.png",
+      "@/assets/icons/selected-marker.png",
+      "@/assets/icons/star.png",
+      "@/assets/icons/target.png",
+      "@/assets/icons/to.png",
+      "@/assets/images/check.png",
+      "@/assets/images/get-started.png",
+      "@/assets/images/message.png",
+      "@/assets/images/no-result.png",
+      "@/assets/images/onboarding1.png",
+      "@/assets/images/onboarding2.png",
+      "@/assets/images/onboarding3.png",
+      "@/assets/images/signup-car.png",
+      "@/components/CustomButton",
+      "@/components/DriverCard",
+      "@/components/GoogleTextInput",
+      "@/components/InputField",
+      "@/components/Map",
+      "@/components/OAuth",
+      "@/components/Payment",
+      "@/components/RideCard",
+      "@/components/RideLayout",
+      "@/constants",
+      "@/lib/auth",
+      "@/lib/fetch",
+      "@/lib/map",
+      "@/lib/utils",
+      "@/store",
+      "@/types/type",
+      "@clerk/clerk-expo",
+      "@gorhom/bottom-sheet",
+      "@neondatabase/serverless",
+      "@stripe/stripe-react-native",
+      "expo-font",
+      "expo-linking",
+      "expo-location",
+      "expo-router",
+      "expo-router/html",
+      "expo-secure-store",
+      "expo-splash-screen",
+      "react",
+      "react-native",
+      "react-native-gesture-handler",
+      "react-native-google-places-autocomplete",
+      "react-native-maps",
+      "react-native-maps-directions",
+      "react-native-modal",
+      "react-native-safe-area-context",
+      "react-native-swiper",
+      "stripe",
+      "zustand"
+    ],
+    "routes": [],
+    "database_tables": [],
+    "classes": [],
+    "functions": [
+      "GET",
+      "Index",
+      "Layout",
+      "NotFoundScreen",
+      "POST",
+      "Root",
+      "RootLayout",
+      "formatDate",
+      "formatTime",
+      "only"
+    ]
+  },
+  "llm_used": true
+}

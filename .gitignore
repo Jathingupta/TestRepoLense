@@ -1,0 +1,1 @@
+.venv/\n__pycache__/\n*.py[cod]\n.env\nnode_modules/\ndist/\nbackend/generated/*\n!backend/generated/.gitkeep\n

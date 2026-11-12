@@ -1,0 +1,305 @@
+{
+  "repository": "wego",
+  "architecture": {
+    "summary": "The `wego` repository contains a minimal Go‑based project structure with three main functional areas: a `backends` package, a `frontends` package, and an `iface` package that likely defines shared interfaces. The project uses Go 1.27 and depends on several third‑party libraries for terminal handling and text rendering. No explicit database, authentication, or deployment configuration is present in the provided evidence.",
+    "components": [
+      {
+        "name": "backends",
+        "description": "Contains backend logic for the application. The directory is listed in the repository tree (`backends/`). No further details are available from the evidence."
+      },
+      {
+        "name": "frontends",
+        "description": "Contains frontend logic or UI components. The directory is listed in the repository tree (`frontends/`). No further details are available from the evidence."
+      },
+      {
+        "name": "iface",
+        "description": "Defines shared interfaces or contracts between backends and frontends. The directory is listed in the repository tree (`iface/`). No further details are available from the evidence."
+      }
+    ],
+    "flows": [
+      "Frontends interact with Backends through the interfaces defined in the `iface` package.",
+      "The application is built with Go 1.27 as specified in `go.mod`.",
+      "Dependencies such as `github.com/mattn/go-colorable` and `github.com/muesli/mango` suggest terminal UI capabilities."
+    ],
+    "risks": [
+      "No authentication or authorization mechanisms are evident in the provided evidence, potentially exposing the application to unauthorized use.",
+      "The absence of database or persistence configuration indicates that data may be transient or missing, which could limit functionality.",
+      "Deployment details are not present; without CI/CD or container manifests, the build and deployment process is unclear.",
+      "The repository contains only three directories and a `go.mod` file; missing source files make it impossible to verify the actual implementation or security posture."
+    ]
+  },
+  "scan": {
+    "file_count": 21,
+    "total_bytes_scanned": 136027,
+    "truncated": false,
+    "languages": {
+      ".go": 15,
+      ".md": 3,
+      ".yml": 3
+    },
+    "repository_tree": "./\n.github/\n.github\\workflows/\nbackends/\nfrontends/\niface/",
+    "files": [
+      {
+        "path": "CONTRIBUTING.md",
+        "language": ".md",
+        "bytes": 187,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "README.md",
+        "language": ".md",
+        "bytes": 5541,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "main.go",
+        "language": ".go",
+        "bytes": 8974,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": ".github/dependabot.yml",
+        "language": ".yml",
+        "bytes": 374,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": ".github/pull_request_template.md",
+        "language": ".md",
+        "bytes": 438,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": ".github/workflows/go-build-test.yml",
+        "language": ".yml",
+        "bytes": 438,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": ".github/workflows/golangci-lint.yml",
+        "language": ".yml",
+        "bytes": 692,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/caiyun.go",
+        "language": ".go",
+        "bytes": 19831,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/json.go",
+        "language": ".go",
+        "bytes": 835,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/open-meteo.com.go",
+        "language": ".go",
+        "bytes": 6875,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/openweathermap.org.go",
+        "language": ".go",
+        "bytes": 8969,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/pirateweather.net.go",
+        "language": ".go",
+        "bytes": 23186,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/smhi.go",
+        "language": ".go",
+        "bytes": 7349,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/weatherapi.com.go",
+        "language": ".go",
+        "bytes": 7090,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "backends/worldweatheronline.com.go",
+        "language": ".go",
+        "bytes": 10033,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "frontends/ascii-art-table.go",
+        "language": ".go",
+        "bytes": 14763,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "frontends/colors.go",
+        "language": ".go",
+        "bytes": 1646,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "frontends/emoji.go",
+        "language": ".go",
+        "bytes": 6317,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "frontends/json.go",
+        "language": ".go",
+        "bytes": 630,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "frontends/markdown.go",
+        "language": ".go",
+        "bytes": 7678,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      },
+      {
+        "path": "iface/iface.go",
+        "language": ".go",
+        "bytes": 4181,
+        "facts": {
+          "imports": [],
+          "classes": [],
+          "functions": [],
+          "routes": [],
+          "tables": []
+        }
+      }
+    ],
+    "manifests": {
+      "go.mod": "module github.com/schachmat/wego\n\ngo 1.27\n\nrequire (\n\tgithub.com/mattn/go-colorable v0.1.15\n\tgithub.com/mattn/go-runewidth v0.0.30\n\tgithub.com/muesli/mango v0.2.0\n\tgithub.com/muesli/roff v0.1.0\n\tgithub.com/schachmat/ingo v0.0.0-20170403011506-a4bdc0729a3f\n)\n\nrequire (\n\tgithub.com/clipperhouse/uax29/v2 v2.2.0 // indirect\n\tgithub.com/mattn/go-isatty v0.0.20 // indirect\n\tgolang.org/x/sys v0.29.0 // indirect\n)\n"
+    },
+    "imports": [],
+    "routes": [],
+    "database_tables": [],
+    "classes": [],
+    "functions": []
+  },
+  "llm_used": true
+}
