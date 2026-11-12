@@ -242,10 +242,35 @@ def make_tdd(repo, scan, architecture):
         for flow in architecture.get("flows", [])
     ]
 
+    dependency_graph = scan.get("dependency_graph", {})
+    lines += [
+        "## 6. Module dependency relationships",
+        dependency_graph.get(
+            "relationship_scope",
+            "Repository-local relationships were not available."
+        ),
+    ]
+    dependency_edges = dependency_graph.get("edges", [])
+    if dependency_edges:
+        lines += [
+            f"- `{edge['source']}` imports `{edge['target']}` "
+            f"(evidence: `{edge['evidence']}`)."
+            for edge in dependency_edges[:100]
+        ]
+    else:
+        lines.append("- No repository-local import relationships were resolved.")
+    unresolved = dependency_graph.get("unresolved_local_imports", [])
+    if unresolved:
+        lines.append("### Unresolved local import candidates")
+        lines += [
+            f"- `{item['source']}`: `{item['import']}`"
+            for item in unresolved[:50]
+        ]
+
     sections = [
-        ("6. API surface", "routes"),
-        ("7. Data layer", "database_tables"),
-        ("8. Dependencies", "imports")
+        ("7. API surface", "routes"),
+        ("8. Data layer", "database_tables"),
+        ("9. External imports", "imports")
     ]
 
     for title, key in sections:
@@ -260,7 +285,7 @@ def make_tdd(repo, scan, architecture):
             lines.append("- Not detected from static analysis.")
 
     lines += [
-        "## 9. Code inventory",
+        "## 10. Code inventory",
         "- Classes: " + (
             ", ".join(scan.get("classes", [])[:60])
             or "Not detected"
@@ -269,7 +294,7 @@ def make_tdd(repo, scan, architecture):
             ", ".join(scan.get("functions", [])[:80])
             or "Not detected"
         ),
-        "## 10. Configuration and deployment"
+        "## 11. Configuration and deployment"
     ]
 
     lines += [
@@ -279,10 +304,10 @@ def make_tdd(repo, scan, architecture):
 
     lines += [
         "Deployment topology: Not detected from static analysis.",
-        "## 11. Security and operations",
+        "## 12. Security and operations",
         "- Review authentication, authorization, logging, monitoring, backups and dependency vulnerabilities.",
         "- Rotate credentials accidentally committed to source control.",
-        "## 12. Risks and limitations"
+        "## 13. Risks and limitations"
     ]
 
     lines += [
@@ -292,7 +317,7 @@ def make_tdd(repo, scan, architecture):
 
     lines += [
         "- Static scanning may miss dynamic imports, runtime routes and external infrastructure.",
-        "## 13. Metrics",
+        "## 14. Metrics",
         f"- Files inspected: {scan['file_count']}",
         f"- Scan truncated: {scan['truncated']}"
     ]
