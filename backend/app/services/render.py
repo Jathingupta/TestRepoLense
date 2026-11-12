@@ -7,6 +7,8 @@ from xml.sax.saxutils import escape
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 
 def render_pdf(markdown, output):
@@ -82,15 +84,32 @@ def _clean_inline(text):
     return text.replace("*", "").strip()
 
 
+def _append_field(run, instruction):
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+    run._r.append(begin)
+
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = f" {instruction} "
+    run._r.append(instr)
+
+    separate = OxmlElement("w:fldChar")
+    separate.set(qn("w:fldCharType"), "separate")
+    run._r.append(separate)
+
+    placeholder = OxmlElement("w:t")
+    placeholder.text = "1"
+    run._r.append(placeholder)
+
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+    run._r.append(end)
+
+
 def _add_page_number(paragraph):
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = paragraph.add_run()
-    begin = run._r.add_fldChar()
-    begin.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldCharType", "begin")
-    instruction = run._r.add_instrText()
-    instruction.text = " PAGE "
-    end = run._r.add_fldChar()
-    end.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldCharType", "end")
+    _append_field(paragraph.add_run(), "PAGE")
 
 
 def render_docx(markdown, output, repository="Repository", diagram_png=None):
@@ -151,19 +170,7 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
     document.add_page_break()
     document.add_heading("Contents", level=1)
     p = document.add_paragraph()
-    r = p.add_run()
-    fld = r._r
-    begin = fld.add_fldChar()
-    begin.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldCharType", "begin")
-    instr = fld.add_instrText()
-    instr.text = ' TOC \\\\o "1-3" \\\\h \\\\z '
-    separate = fld.add_fldChar()
-    separate.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldCharType", "separate")
-    placeholder = p.add_run("Open in Word and update the table of contents if it is not populated.")
-    placeholder.italic = True
-    end_run = p.add_run()
-    end = end_run._r.add_fldChar()
-    end.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldCharType", "end")
+    _append_field(p.add_run(), 'TOC \\o "1-3" \\h \\z')
 
     document.add_page_break()
     if diagram_png and Path(diagram_png).is_file():
