@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 SKIP = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", "target", ".next", "coverage"}
-EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".cs", ".php", ".rb", ".rs", ".sql", ".yaml", ".yml", ".toml", ".ini", ".xml", ".json", ".md", ".sh"}
+EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go", ".cs", ".php", ".rb", ".rs", ".sql", ".yaml", ".yml", ".toml", ".ini", ".xml", ".json", ".md", ".sh"}
 JS_EXTENSIONS = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
 MANIFESTS = {"package.json", "requirements.txt", "pyproject.toml", "Pipfile", "pom.xml", "build.gradle", "go.mod", "Cargo.toml", "composer.json", "Gemfile", "Dockerfile", "docker-compose.yml", "docker-compose.yaml", "Makefile", ".env.example"}
 
@@ -115,7 +115,21 @@ def build_dependency_graph(files):
         language = item["language"]
         for import_name in item["facts"].get("imports", []):
             targets = _candidate_paths(source, import_name, language)
-            target = next((candidate for candidate in targets if candidate in paths), None)
+            resolved = []
+            for candidate in targets:
+                matches = [
+                    path for path in paths
+                    if path == candidate or path.endswith("/" + candidate)
+                ]
+                if len(matches) == 1:
+                    resolved.append(matches[0])
+                elif len(matches) > 1:
+                    unresolved.append({
+                        "source": source,
+                        "import": import_name,
+                        "reason": f"Ambiguous local module path: {candidate}",
+                    })
+            target = resolved[0] if resolved else None
             if target:
                 edges.append({
                     "source": source,
@@ -124,8 +138,16 @@ def build_dependency_graph(files):
                     "evidence": import_name,
                     "confidence": "high",
                 })
-            elif import_name.startswith(".") or (language == ".py" and import_name and import_name.split(".")[0] in {Path(p).parts[0] for p in paths}):
-                unresolved.append({"source": source, "import": import_name, "reason": "No matching repository file found"})
+            elif import_name.startswith(".") or (
+                language == ".py"
+                and import_name
+                and any(import_name.split(".")[0] in Path(path).parts for path in paths)
+            ):
+                unresolved.append({
+                    "source": source,
+                    "import": import_name,
+                    "reason": "No matching repository file found",
+                })
     # Stable, duplicate-free output makes reports and tests deterministic.
     unique_edges = {(e["source"], e["target"], e["evidence"]): e for e in edges}
     return {
