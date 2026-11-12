@@ -139,7 +139,8 @@ def architecture_agent(state):
         "routes",
         "database_tables",
         "classes",
-        "functions"
+        "functions",
+        "dependency_graph"
     )
 
     evidence = {
@@ -389,66 +390,54 @@ def validation_agent(state):
 # --------------------------------------------------
 
 def diagram(architecture, scan):
+    """
+    Render repository-local import relationships discovered by the scanner.
+    No sequential or inferred edges are added.
+    """
+    graph_data = scan.get("dependency_graph") or {}
+    nodes = graph_data.get("nodes", [])
+    edges = graph_data.get("edges", [])
+
+    # Keep diagrams readable for large repositories.
+    visible_nodes = nodes[:30]
+    node_ids = {
+        node["path"]: f"N{index}"
+        for index, node in enumerate(visible_nodes)
+        if node.get("path")
+    }
 
     lines = [
-        "flowchart TD",
-        '    Client["User / Client"]'
+        "flowchart LR",
+        '    classDef source fill:#e8f1ff,stroke:#3267a8,color:#142b45;',
+        '    classDef isolated fill:#f4f4f5,stroke:#71717a,color:#27272a;'
     ]
 
-    component_ids = []
+    for path, node_id in node_ids.items():
+        label = path.replace("\\", "/")
+        label = re.sub(r"[^A-Za-z0-9_./ -]", "", label)[-65:]
+        lines.append(f'    {node_id}["{label}"]')
 
-    for index, component in enumerate(
-        architecture.get("components", [])[:8]
-    ):
-        label = re.sub(
-            r"[^A-Za-z0-9 _-]",
-            "",
-            str(component.get("name", "Component"))
-        )[:45]
+    rendered_edges = 0
+    for edge in edges:
+        source = edge.get("source")
+        target = edge.get("target")
+        if source in node_ids and target in node_ids:
+            lines.append(f'    {node_ids[source]} -->|imports| {node_ids[target]}')
+            rendered_edges += 1
+            if rendered_edges >= 60:
+                break
 
-        label = label or f"Component {index + 1}"
+    if not rendered_edges:
+        lines.append('    NoEdges["No repository-local import relationships resolved"]')
+        lines.append('    NoEdges:::isolated')
 
-        component_id = f"C{index}"
-        component_ids.append(component_id)
-
+    if len(nodes) > len(visible_nodes):
         lines.append(
-            f'    {component_id}["{label}"]'
+            f'    More["{len(nodes) - len(visible_nodes)} additional files omitted from this view"]'
         )
 
-    if component_ids:
-        lines.append(
-            f"    Client --> {component_ids[0]}"
-        )
+    return "\\n".join(lines)
 
-        for first, second in zip(
-            component_ids,
-            component_ids[1:]
-        ):
-            lines.append(
-                f"    {first} --> {second}"
-            )
-
-    if scan.get("database_tables"):
-        lines.append(
-            '    DB[("Database / SQL references")]'
-        )
-
-        last_component = (
-            component_ids[-1]
-            if component_ids
-            else "Client"
-        )
-
-        lines.append(
-            f"    {last_component} -.-> DB"
-        )
-
-    return "\n".join(lines)
-
-
-# --------------------------------------------------
-# 10. LANGGRAPH WORKFLOW
-# --------------------------------------------------
 
 def run_agents(repo, scan):
 
