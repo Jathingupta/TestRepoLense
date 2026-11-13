@@ -152,7 +152,7 @@ def architecture_agent(state):
         "Identify screens/routing, state, application services, API handlers, persistence, "
         "and external integrations only when supported by source-code usage. "
         "A package manifest proves a dependency is declared, not that it is actively integrated. " "External integrations must cite source files showing imports, initialization or API usage. " "Every component must cite exact evidence_paths from evidence.files or evidence.manifests. "
-        "Every relationship and flow must cite exact scanned paths. Imports prove module "
+        "Every relationship must cite at least one path belonging to each connected component. Every flow must cite exact scanned paths and include only components in the supported sequence. Imports prove module "
         "dependency, not runtime calls. Label inferred runtime behavior with confidence='inferred'. "
         "Never invent paths, APIs, providers, databases, infrastructure or business flows. "
         "Omit relationships that cannot be supported. Use clear component names and concise "
