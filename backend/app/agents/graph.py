@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.core.config import settings
+from app.agents.architecture_model import fallback_architecture, validate_architecture, diagram
 
 
 # --------------------------------------------------
@@ -27,54 +28,8 @@ class State(TypedDict, total=False):
 # 2. FALLBACK ARCHITECTURE
 # --------------------------------------------------
 
-def fallback_architecture(repo, scan):
-    extensions = set(scan.get("languages", {}))
-    parts = []
-
-    if ".py" in extensions:
-        parts.append("Python application/services")
-
-    if extensions.intersection({".js", ".jsx", ".ts", ".tsx"}):
-        parts.append("JavaScript/TypeScript application")
-
-    if ".java" in extensions:
-        parts.append("Java application")
-
-    if ".go" in extensions:
-        parts.append("Go services")
-
-    if scan.get("database_tables") or ".sql" in extensions:
-        parts.append("SQL/data layer")
-
-    if not parts:
-        parts = ["Application source code"]
-
-    return {
-        "summary": (
-            f"{repo}: {scan['file_count']} files inspected. "
-            f"Detected: {', '.join(parts)}."
-        ),
-        "components": [
-            {
-                "name": component,
-                "description": (
-                    "Detected from source types and repository evidence."
-                )
-            }
-            for component in parts
-        ],
-        "flows": [
-            "Module and request flows require runtime verification.",
-            "SQL references appear only when static SQL patterns are found."
-        ],
-        "risks": [
-            "Static analysis cannot prove runtime call paths or deployment topology.",
-            "Review inferred boundaries with maintainers."
-        ]
-    }
 
 
-# --------------------------------------------------
 # 3. GROQ LLM CLIENT
 # --------------------------------------------------
 
@@ -120,84 +75,106 @@ def extract_json(raw):
 # 5. ARCHITECTURE AGENT
 # --------------------------------------------------
 
+def _architecture_evidence(scan):
+    """Provide compact file-level evidence with exact paths for citations."""
+    files = []
+    for item in scan.get("files", [])[:260]:
+        facts = item.get("facts", {})
+        files.append({
+            "path": item.get("path"), "language": item.get("language"),
+            "imports": facts.get("imports", [])[:20],
+            "routes": facts.get("routes", [])[:12],
+            "tables": facts.get("tables", [])[:12],
+            "classes": facts.get("classes", [])[:12],
+            "functions": facts.get("functions", [])[:20],
+        })
+    manifests = {}
+    for path, raw in (scan.get("manifests") or {}).items():
+        if Path(path).name == "package.json":
+            try:
+                data = json.loads(raw)
+                manifests[path] = {
+                    "name": data.get("name"),
+                    "dependencies": data.get("dependencies", {}),
+                    "devDependencies": data.get("devDependencies", {}),
+                }
+            except (TypeError, json.JSONDecodeError):
+                manifests[path] = {"parse_error": True}
+        else:
+            manifests[path] = raw[:3000]
+    graph = scan.get("dependency_graph") or {}
+    return {"files": files, "manifests": manifests,
+            "resolved_import_edges": graph.get("edges", [])[:400],
+            "unresolved_local_imports": graph.get("unresolved_local_imports", [])[:80],
+            "repository_tree": scan.get("repository_tree", "")[:4000]}
+
+
 def architecture_agent(state):
     llm = llm_client()
     scan = state["scan"]
-
     if not llm:
-        return {
-            "architecture": fallback_architecture(
-                state["repository"], scan
-            ),
-            "llm_used": False
-        }
+        return {"architecture": fallback_architecture(state["repository"], scan),
+                "llm_used": False}
 
-    keys = (
-        "languages",
-        "repository_tree",
-        "manifests",
-        "imports",
-        "routes",
-        "database_tables",
-        "classes",
-        "functions",
-        "dependency_graph"
-    )
-
-    evidence = {
-        key: scan.get(key)
-        for key in keys
+    schema = {
+        "summary": "string",
+        "layers": [{"id": "presentation", "name": "Presentation",
+                    "description": "Layer responsibility"}],
+        "components": [{
+            "id": "ride_api", "name": "Ride API", "layer": "application",
+            "type": "api|service|screen|database|external_service|state_store",
+            "description": "Component responsibility",
+            "evidence_paths": ["exact/path/from/evidence"],
+            "external": False
+        }],
+        "relationships": [{
+            "source": "component_id", "target": "component_id",
+            "type": "calls|imports|reads_from|writes_to|authenticates_with|integrates_with",
+            "label": "short relationship label",
+            "evidence_paths": ["exact/path/from/evidence"],
+            "confidence": "high|medium|inferred",
+            "basis": "Concrete evidence and whether runtime behavior is inferred"
+        }],
+        "flows": [{
+            "name": "Ride booking",
+            "description": "Only when end-to-end steps are supported",
+            "steps": ["component_id", "component_id"],
+            "evidence_paths": ["exact/path/from/evidence"]
+        }],
+        "risks": ["Evidence-backed risk or limitation"]
     }
-
+    evidence = _architecture_evidence(scan)
     prompt = (
-        "Return ONLY valid JSON with these fields:\n"
-        "summary: string\n"
-        "components: array of objects with name and description\n"
-        "flows: array of strings\n"
-        "risks: array of strings\n\n"
-        "Use only the provided repository evidence. "
-        "Never invent cloud infrastructure, databases, authentication "
-        "or deployment details. Clearly mark inferences and cite paths.\n\n"
-        f"Repository: {state['repository']}\n\n"
-        f"Evidence:\n{json.dumps(evidence, ensure_ascii=False)[:18000]}"
+        "Act as a senior software architect. Return ONLY valid JSON matching this schema "
+        "(examples are placeholders, not repository facts):\n"
+        f"{json.dumps(schema, ensure_ascii=False)}\n\n"
+        "Create a meaningful layered system architecture, NOT a folder or file inventory. "
+        "Identify screens/routing, state, application services, API handlers, persistence, "
+        "and external integrations only when supported by the supplied evidence. "
+        "Every component must cite exact evidence_paths from evidence.files or evidence.manifests. "
+        "Every relationship and flow must cite exact scanned paths. Imports prove module "
+        "dependency, not runtime calls. Label inferred runtime behavior with confidence='inferred'. "
+        "Never invent paths, APIs, providers, databases, infrastructure or business flows. "
+        "Omit relationships that cannot be supported. Use clear component names and concise "
+        "responsibilities.\n\n"
+        f"Repository: {state['repository']}\n"
+        f"Evidence:\n{json.dumps(evidence, ensure_ascii=False)[:24000]}"
     )
-
     try:
         message = llm.invoke([
-            SystemMessage(
-                content="You are an evidence-led senior software architect."
-            ),
+            SystemMessage(content="Produce precise evidence-led software architecture. Never hallucinate repository components or relationships."),
             HumanMessage(content=prompt)
         ])
-
-        raw = (
-            message.content
-            if isinstance(message.content, str)
-            else str(message.content)
-        )
-
-        architecture = extract_json(raw)
-
-        if not isinstance(architecture.get("components"), list):
-            raise ValueError("Invalid architecture JSON: components missing")
-
-        return {
-            "architecture": architecture,
-            "llm_used": True
-        }
-
+        raw = message.content if isinstance(message.content, str) else str(message.content)
+        architecture = validate_architecture(extract_json(raw), scan)
+        if not architecture["components"]:
+            raise ValueError("LLM returned no components tied to scanned source paths")
+        return {"architecture": architecture, "llm_used": True}
     except Exception as error:
         print(f"Architecture agent failed: {error}")
+        return {"architecture": fallback_architecture(state["repository"], scan),
+                "llm_used": False}
 
-        return {
-            "architecture": fallback_architecture(
-                state["repository"], scan
-            ),
-            "llm_used": False
-        }
-
-
-# --------------------------------------------------
 # 6. TECHNICAL DESIGN DOCUMENT GENERATOR
 # --------------------------------------------------
 
@@ -477,73 +454,7 @@ def validation_agent(state):
 # 9. ARCHITECTURE DIAGRAM GENERATOR
 # --------------------------------------------------
 
-def diagram(architecture, scan):
-    """Build a compact architecture view from source areas and resolved imports."""
-    graph = scan.get("dependency_graph") or {}
-    nodes, edges = graph.get("nodes", []), graph.get("edges", [])
-    source_exts = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
-                   ".java", ".go", ".cs", ".php", ".rb", ".rs"}
-    paths = {
-        n.get("path") for n in nodes
-        if isinstance(n, dict) and n.get("path")
-        and Path(n["path"]).suffix.lower() in source_exts
-    }
 
-    def area(path):
-        p = path.replace("\\", "/").lower()
-        if p.startswith("app/") and ("(api)" in p or "+api." in p or "/api/" in p):
-            return "API routes"
-        if p.startswith(("app/", "pages/", "routes/")):
-            return "Screens and routing"
-        if p.startswith(("components/", "ui/")):
-            return "Reusable UI components"
-        if p.startswith(("services/", "lib/", "utils/")):
-            return "Services and utilities"
-        if p.startswith(("store/", "state/")):
-            return "Client state"
-        if p.startswith(("models/", "schemas/", "repositories/", "db/", "database/")):
-            return "Data and persistence"
-        if p.startswith(("backend/", "server/")):
-            return "Backend application"
-        return "Other source modules"
-
-    groups = {}
-    for path in sorted(paths):
-        groups.setdefault(area(path), []).append(path)
-    ids = {
-        "Screens and routing": "UI", "Reusable UI components": "COMP",
-        "Services and utilities": "SVC", "Client state": "STATE",
-        "API routes": "API", "Data and persistence": "DATA",
-        "Backend application": "BACKEND", "Other source modules": "OTHER"
-    }
-    lines = [
-        "flowchart LR",
-        "    %% Nodes are source areas; edges aggregate resolved static imports.",
-        '    classDef layer fill:#eaf2ff,stroke:#4778b8,color:#172b4d;',
-        '    classDef note fill:#f8fafc,stroke:#94a3b8,color:#334155;'
-    ]
-    for label, members in groups.items():
-        examples = "<br/>".join(Path(p).name for p in members[:4])
-        if len(members) > 4:
-            examples += f"<br/>+{len(members)-4} more"
-        lines.append(
-            f'    {ids[label]}["{label}<br/>{len(members)} source files<br/><small>{examples}</small>"]:::layer'
-        )
-
-    aggregate = {}
-    for edge in edges:
-        source, target = edge.get("source"), edge.get("target")
-        if source not in paths or target not in paths:
-            continue
-        src, dst = area(source), area(target)
-        if src != dst and src in groups and dst in groups:
-            aggregate[(src, dst)] = aggregate.get((src, dst), 0) + 1
-    for (src, dst), count in sorted(aggregate.items()):
-        lines.append(f'    {ids[src]} -->|imports: {count}| {ids[dst]}')
-    if not groups:
-        lines.append('    EMPTY["No supported source modules found"]')
-    lines.append('    NOTE["Arrows represent resolved static imports, not runtime calls"]:::note')
-    return "\n".join(lines)
 
 def run_agents(repo, scan):
 
