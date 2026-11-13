@@ -136,7 +136,8 @@ def _load_ts_configs(manifests):
 
 
 def _is_within(path, directory):
-    directory = directory.rstrip("/")
+    # Path(".").as_posix() is ".", which represents the repository root.
+    directory = "" if directory in {"", "."} else directory.rstrip("/")
     return not directory or path == directory or path.startswith(directory + "/")
 
 
