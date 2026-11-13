@@ -128,7 +128,7 @@ def _add_markdown_table(document, rows):
     headers = _markdown_cells(rows[0])
     data_rows = [
         _markdown_cells(row) for row in rows[1:]
-        if not re.match(r"^\\s*\\|?\\s*:?-{3,}", row)
+        if not re.match(r"^\s*\|?\s*:?-{3,}", row)
     ]
     column_count = max(1, len(headers))
     table = document.add_table(rows=1, cols=column_count)
@@ -211,7 +211,7 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
     # Build a populated, reliable contents list from the same headings used below.
     # Unlike a field-only TOC, these entries are visible immediately in Word previews.
     for raw in markdown.splitlines():
-        heading = re.match(r"^(#{1,3})\\s+(.+?)\\s*$", raw)
+        heading = re.match(r"^(#{1,3})\s+(.+?)\s*$", raw)
         if not heading:
             continue
         level = len(heading.group(1))
@@ -246,7 +246,7 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
                 paragraph = document.add_paragraph()
                 paragraph.paragraph_format.left_indent = Inches(0.18)
                 paragraph.paragraph_format.right_indent = Inches(0.18)
-                run = paragraph.add_run("\\n".join(code_lines))
+                run = paragraph.add_run("\n".join(code_lines))
                 run.font.name = "Consolas"
                 run.font.size = Pt(8)
                 run.font.color.rgb = RGBColor(55, 65, 81)
@@ -279,8 +279,8 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
             document.add_heading(_clean_inline(line[5:]), level=3)
         elif line.startswith(("- ", "* ")):
             document.add_paragraph(_clean_inline(line[2:]), style="List Bullet")
-        elif re.match(r"^\\d+[.)]\\s+", line):
-            document.add_paragraph(_clean_inline(re.sub(r"^\\d+[.)]\\s+", "", line)), style="List Number")
+        elif re.match(r"^\d+[.)]\s+", line):
+            document.add_paragraph(_clean_inline(re.sub(r"^\d+[.)]\s+", "", line)), style="List Number")
         else:
             document.add_paragraph(_clean_inline(line))
         index += 1
