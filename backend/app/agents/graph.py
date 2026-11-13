@@ -266,18 +266,35 @@ def make_tdd(repo, scan, architecture):
         "### Components"
     ]
 
+    for layer in architecture.get("layers", []):
+        lines.append(f"### {layer.get('name', 'Architecture layer')}")
+        if layer.get("description"):
+            lines.append(layer["description"])
+        members = [item for item in architecture.get("components", [])
+                   if item.get("layer") == layer.get("id")]
+        lines += [
+            f"- **{item.get('name', 'Component')}** ({item.get('type', 'component')}): "
+            f"{item.get('description', '')} "
+            f"(evidence: {', '.join(item.get('evidence_paths', []))})"
+            for item in members
+        ]
+
+    lines += ["### Relationships"]
     lines += [
-        f"- **{component.get('name', 'Component')}**: "
-        f"{component.get('description', '')}"
-        for component in architecture.get("components", [])
-    ] or ["- Not detected."]
+        f"- **{item.get('source')} → {item.get('target')}** "
+        f"({item.get('label', item.get('type'))}; confidence: {item.get('confidence')}). "
+        f"Evidence: {', '.join(item.get('evidence_paths', []))}. {item.get('basis', '')}"
+        for item in architecture.get("relationships", [])
+    ] or ["- No cross-component relationships met the evidence threshold."]
 
     lines += ["### Flows"]
-
     lines += [
-        f"- {flow}"
+        f"- **{flow.get('name', 'Application flow')}**: "
+        f"{flow.get('description', '')} "
+        f"Steps: {' → '.join(flow.get('steps', []))}. "
+        f"Evidence: {', '.join(flow.get('evidence_paths', []))}."
         for flow in architecture.get("flows", [])
-    ]
+    ] or ["- No end-to-end flow met the evidence threshold."]
 
     dependency_graph = scan.get("dependency_graph", {})
     lines += [
