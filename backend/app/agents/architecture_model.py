@@ -6,6 +6,12 @@ def _id(value):
     return "N_" + re.sub(r"[^A-Za-z0-9_]", "_", str(value))
 
 
+def _valid_paths(values, known):
+    if not isinstance(values, list):
+        return []
+    return list(dict.fromkeys(p for p in values if isinstance(p, str) and p in known))
+
+
 def validate_architecture(model, scan):
     """Validate all model references against paths and IDs in the scan."""
     known = {item.get("path") for item in scan.get("files", [])}
@@ -29,8 +35,7 @@ def validate_architecture(model, scan):
         if not isinstance(item, dict):
             continue
         cid = re.sub(r"[^A-Za-z0-9_]", "_", str(item.get("id") or f"component_{i}"))
-        paths = list(dict.fromkeys(p for p in item.get("evidence_paths", [])
-                                   if isinstance(p, str) and p in known))
+        paths = _valid_paths(item.get("evidence_paths"), known)
         layer = str(item.get("layer") or layers[0]["id"])
         name = str(item.get("name") or "").strip()
         if not cid or cid in ids or not name or layer not in layer_ids or not paths:
@@ -48,8 +53,7 @@ def validate_architecture(model, scan):
         if not isinstance(item, dict):
             continue
         source, target = item.get("source"), item.get("target")
-        paths = list(dict.fromkeys(p for p in item.get("evidence_paths", [])
-                                   if isinstance(p, str) and p in known))
+        paths = _valid_paths(item.get("evidence_paths"), known)
         key = (source, target, item.get("type"))
         if source not in ids or target not in ids or source == target or not paths or key in seen:
             continue
@@ -68,7 +72,7 @@ def validate_architecture(model, scan):
         if not isinstance(item, dict):
             continue
         steps = [s for s in item.get("steps", []) if s in ids]
-        paths = [p for p in item.get("evidence_paths", []) if p in known]
+        paths = _valid_paths(item.get("evidence_paths"), known)
         if len(steps) > 1 and paths:
             flows.append({"name": str(item.get("name") or "Application flow")[:80],
                           "description": str(item.get("description") or "")[:250],
