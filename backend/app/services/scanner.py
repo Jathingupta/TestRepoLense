@@ -1,4 +1,5 @@
 import ast
+import json
 import os
 import re
 from collections import Counter
@@ -7,7 +8,7 @@ from pathlib import Path
 SKIP = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", "target", ".next", "coverage"}
 EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go", ".cs", ".php", ".rb", ".rs", ".sql", ".yaml", ".yml", ".toml", ".ini", ".xml", ".json", ".md", ".sh"}
 JS_EXTENSIONS = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
-MANIFESTS = {"package.json", "requirements.txt", "pyproject.toml", "Pipfile", "pom.xml", "build.gradle", "go.mod", "Cargo.toml", "composer.json", "Gemfile", "Dockerfile", "docker-compose.yml", "docker-compose.yaml", "Makefile", ".env.example"}
+MANIFESTS = {"package.json", "requirements.txt", "pyproject.toml", "Pipfile", "pom.xml", "build.gradle", "go.mod", "Cargo.toml", "composer.json", "Gemfile", "Dockerfile", "docker-compose.yml", "docker-compose.yaml", "Makefile", ".env.example", "tsconfig.json", "jsconfig.json"}
 
 
 def facts_py(src):
