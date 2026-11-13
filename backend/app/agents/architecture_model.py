@@ -161,7 +161,17 @@ def diagram(architecture, scan):
             label += " (inferred)"
         lines.append(f'    {_id(r["source"])} -->|{label}| {_id(r["target"])}')
         edge_index += 1
-    if not edge_index:
+    flow_edges = set()
+    for flow in architecture.get("flows", []):
+        steps = [step for step in flow.get("steps", []) if step in valid_ids]
+        for source, target in zip(steps, steps[1:]):
+            if source == target or (source, target) in flow_edges:
+                continue
+            flow_edges.add((source, target))
+            lines.append(
+                f'    {_id(source)} -.->|flow: {_label(flow.get("name", "workflow"))}| {_id(target)}'
+            )
+    if not edge_index and not flow_edges:
         lines.append('    NOTE["No cross-component relationships met the evidence threshold."]')
     lines.append('    LIMIT["Relationships cite scanned files; inferred runtime behavior is labelled."]')
     return "\n".join(lines)
