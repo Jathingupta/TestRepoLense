@@ -109,7 +109,21 @@ def fallback_architecture(repo, scan):
         path = item.get("path", "")
         if Path(path).suffix.lower() not in source_exts:
             continue
-        area = Path(path).parts[0] if len(Path(path).parts) > 1 else "root modules"
+        parts = [part.lower() for part in Path(path).parts]
+        if any(part in {"api", "routes"} or "(api)" in part for part in parts):
+            area = "API and route handlers"
+        elif any(part in {"screens", "pages", "views"} for part in parts):
+            area = "Screens and navigation"
+        elif any(part in {"components", "ui", "widgets"} for part in parts):
+            area = "Reusable UI components"
+        elif any(part in {"services", "lib", "utils", "hooks"} for part in parts):
+            area = "Application services and utilities"
+        elif any(part in {"store", "state"} for part in parts):
+            area = "Client state"
+        elif any(part in {"models", "repositories", "db", "database", "schemas"} for part in parts):
+            area = "Data and persistence"
+        else:
+            area = Path(path).parts[0] if len(Path(path).parts) > 1 else "root modules"
         groups.setdefault(area, []).append(path)
     components = []
     for i, (name, paths) in enumerate(sorted(groups.items()), 1):
