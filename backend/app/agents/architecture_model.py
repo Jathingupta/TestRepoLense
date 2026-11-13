@@ -38,13 +38,19 @@ def validate_architecture(model, scan):
         paths = _valid_paths(item.get("evidence_paths"), known)
         layer = str(item.get("layer") or layers[0]["id"])
         name = str(item.get("name") or "").strip()
-        if not cid or cid in ids or not name or layer not in layer_ids or not paths:
+        is_external = bool(item.get("external", False))
+        code_extensions = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+                           ".java", ".go", ".cs", ".php", ".rb", ".rs", ".sql"}
+        if (not cid or cid in ids or not name or layer not in layer_ids or not paths):
+            continue
+        # A package manifest alone proves declaration, not active integration.
+        if is_external and not any(Path(path).suffix.lower() in code_extensions for path in paths):
             continue
         components.append({
             "id": cid, "name": name[:100], "layer": layer,
             "type": str(item.get("type") or "component")[:50],
             "description": str(item.get("description") or "")[:350],
-            "evidence_paths": paths[:8], "external": bool(item.get("external", False))
+            "evidence_paths": paths[:8], "external": is_external
         })
         ids.add(cid)
 
@@ -55,7 +61,15 @@ def validate_architecture(model, scan):
         source, target = item.get("source"), item.get("target")
         paths = _valid_paths(item.get("evidence_paths"), known)
         key = (source, target, item.get("type"))
-        if source not in ids or target not in ids or source == target or not paths or key in seen:
+        source_component = next((c for c in components if c["id"] == source), None)
+        target_component = next((c for c in components if c["id"] == target), None)
+        if (source_component is None or target_component is None or source == target
+                or not paths or key in seen):
+            continue
+        # The cited files must belong to both ends of the claimed relationship.
+        if not (set(paths) & set(source_component["evidence_paths"])):
+            continue
+        if not (set(paths) & set(target_component["evidence_paths"])):
             continue
         seen.add(key)
         relationships.append({
