@@ -200,6 +200,68 @@ def architecture_agent(state):
 # 6. TECHNICAL DESIGN DOCUMENT GENERATOR
 # --------------------------------------------------
 
+
+def technology_stack_lines(scan):
+    """Extract technologies and versions from dependency manifests."""
+    technologies = []
+    manifests = scan.get("manifests", {}) or {}
+    package_data = {}
+    for path, raw in manifests.items():
+        if Path(path).name == "package.json":
+            try:
+                package_data = json.loads(raw)
+                break
+            except (TypeError, json.JSONDecodeError):
+                continue
+
+    def add(name, version, role):
+        technologies.append(
+            f"- **{name}** ({version or 'version not specified'}) — {role}"
+        )
+
+    if package_data:
+        add("Node.js", (package_data.get("engines") or {}).get("node"),
+            "JavaScript runtime ecosystem")
+        deps = {}
+        for group in ("dependencies", "devDependencies", "peerDependencies"):
+            deps.update(package_data.get(group) or {})
+        roles = {
+            "expo": "cross-platform application framework",
+            "expo-router": "file-based navigation and routing",
+            "react": "UI library",
+            "react-native": "native mobile UI framework",
+            "typescript": "typed JavaScript language tooling",
+            "@clerk/clerk-expo": "authentication SDK",
+            "@stripe/stripe-react-native": "mobile payment SDK",
+            "@neondatabase/serverless": "serverless PostgreSQL client",
+            "zustand": "client-side state management",
+            "react-native-maps": "native maps integration",
+            "nativewind": "utility-first styling for React Native",
+            "tailwindcss": "utility-first CSS framework",
+            "axios": "HTTP client",
+            "zod": "runtime schema validation",
+            "express": "HTTP server framework",
+        }
+        for name, version in sorted(deps.items()):
+            if name in roles:
+                add(name, version, roles[name])
+        for name, version in sorted(deps.items()):
+            if name not in roles and len(technologies) < 24:
+                add(name, version, "declared dependency; role not classified")
+
+    if not technologies:
+        for path, raw in manifests.items():
+            if Path(path).name == "requirements.txt":
+                for line in raw.splitlines():
+                    match = re.match(r"\s*([A-Za-z0-9_.-]+)\s*(?:==|>=|~=)\s*([^;\s]+)", line)
+                    if match:
+                        add(match.group(1), match.group(2), "Python package from requirements")
+    return technologies or [
+        "- No supported dependency manifest could be parsed.",
+        "- File-extension counts are reported separately in Inventory."
+    ]
+
+
 def make_tdd(repo, scan, architecture):
 
     lines = [
@@ -215,10 +277,7 @@ def make_tdd(repo, scan, architecture):
         "## 3. Technology stack"
     ]
 
-    lines += [
-        f"- `{key}`: {value} files"
-        for key, value in scan.get("languages", {}).items()
-    ] or ["- Not detected."]
+    lines += technology_stack_lines(scan)
 
     lines += [
         "## 4. Repository structure",
@@ -418,90 +477,71 @@ def validation_agent(state):
 # --------------------------------------------------
 
 def diagram(architecture, scan):
-    """
-    Build a grouped module architecture view from resolved repository imports.
-    Groups are based on actual repository paths; arrows remain explicitly labelled
-    as imports and are never presented as runtime calls.
-    """
-    graph_data = scan.get("dependency_graph") or {}
-    nodes = graph_data.get("nodes", [])
-    edges = graph_data.get("edges", [])
-
-    node_paths = {
-        node.get("path") for node in nodes
-        if isinstance(node, dict) and node.get("path")
+    """Build a compact architecture view from source areas and resolved imports."""
+    graph = scan.get("dependency_graph") or {}
+    nodes, edges = graph.get("nodes", []), graph.get("edges", [])
+    source_exts = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+                   ".java", ".go", ".cs", ".php", ".rb", ".rs"}
+    paths = {
+        n.get("path") for n in nodes
+        if isinstance(n, dict) and n.get("path")
+        and Path(n["path"]).suffix.lower() in source_exts
     }
-    degree = {path: 0 for path in node_paths}
-    valid_edges = []
-    for edge in edges:
-        source, target = edge.get("source"), edge.get("target")
-        if source in node_paths and target in node_paths:
-            valid_edges.append(edge)
-            degree[source] = degree.get(source, 0) + 1
-            degree[target] = degree.get(target, 0) + 1
 
-    # Prioritize connected modules so the diagram communicates structure.
-    max_nodes = 45
-    if len(node_paths) > max_nodes:
-        selected = set(sorted(node_paths, key=lambda path: (-degree.get(path, 0), path))[:max_nodes])
-    else:
-        selected = node_paths
-
-    def group_for(path):
-        parts = path.replace("\\", "/").split("/")
-        if len(parts) > 1 and parts[0] == "app":
-            return "/".join(parts[:2])
-        return parts[0] if len(parts) > 1 else "repository root"
+    def area(path):
+        p = path.replace("\\", "/").lower()
+        if p.startswith("app/") and ("(api)" in p or "+api." in p or "/api/" in p):
+            return "API routes"
+        if p.startswith(("app/", "pages/", "routes/")):
+            return "Screens and routing"
+        if p.startswith(("components/", "ui/")):
+            return "Reusable UI components"
+        if p.startswith(("services/", "lib/", "utils/")):
+            return "Services and utilities"
+        if p.startswith(("store/", "state/")):
+            return "Client state"
+        if p.startswith(("models/", "schemas/", "repositories/", "db/", "database/")):
+            return "Data and persistence"
+        if p.startswith(("backend/", "server/")):
+            return "Backend application"
+        return "Other source modules"
 
     groups = {}
-    for path in sorted(selected):
-        groups.setdefault(group_for(path), []).append(path)
-
-    def safe_id(prefix, value):
-        token = re.sub(r"[^A-Za-z0-9_]", "_", value)
-        if not token or token[0].isdigit():
-            token = "X_" + token
-        return prefix + token
-
-    node_ids = {path: f"N{index}" for index, path in enumerate(sorted(selected))}
-    group_ids = {group: safe_id("G_", group) for group in groups}
+    for path in sorted(paths):
+        groups.setdefault(area(path), []).append(path)
+    ids = {
+        "Screens and routing": "UI", "Reusable UI components": "COMP",
+        "Services and utilities": "SVC", "Client state": "STATE",
+        "API routes": "API", "Data and persistence": "DATA",
+        "Backend application": "BACKEND", "Other source modules": "OTHER"
+    }
     lines = [
         "flowchart LR",
-        "    %% Groups reflect repository folders; arrows are static import evidence.",
-        '    classDef module fill:#eaf2ff,stroke:#4778b8,color:#172b4d;',
-        '    classDef feature fill:#f1f5f9,stroke:#64748b,color:#1e293b;'
+        "    %% Nodes are source areas; edges aggregate resolved static imports.",
+        '    classDef layer fill:#eaf2ff,stroke:#4778b8,color:#172b4d;',
+        '    classDef note fill:#f8fafc,stroke:#94a3b8,color:#334155;'
     ]
-
-    for group, paths in groups.items():
-        lines.append(f'    subgraph {group_ids[group]}["{group}"]')
-        lines.append("        direction TB")
-        for path in paths:
-            label = path.replace("\\", "/")
-            label = re.sub(r'["<>]', "", label)
-            label = label[-72:]
-            lines.append(f'        {node_ids[path]}["{label}"]:::module')
-        lines.append("    end")
-        lines.append(f"    class {group_ids[group]} feature")
-
-    visible_edges = 0
-    for edge in valid_edges:
-        source, target = edge.get("source"), edge.get("target")
-        if source in node_ids and target in node_ids:
-            lines.append(f'    {node_ids[source]} -->|imports| {node_ids[target]}')
-            visible_edges += 1
-            if visible_edges >= 90:
-                break
-
-    if not selected:
-        lines.append('    Empty["No source modules detected"]')
-    if not visible_edges and selected:
-        lines.append('    Note["No resolved local import edges in this view"]')
-    if len(node_paths) > len(selected):
+    for label, members in groups.items():
+        examples = "<br/>".join(Path(p).name for p in members[:4])
+        if len(members) > 4:
+            examples += f"<br/>+{len(members)-4} more"
         lines.append(
-            f'    Omitted["Showing {len(selected)} of {len(node_paths)} modules; '
-            f'{len(node_paths) - len(selected)} lower-connectivity modules omitted"]'
+            f'    {ids[label]}["{label}<br/>{len(members)} source files<br/><small>{examples}</small>"]:::layer'
         )
 
+    aggregate = {}
+    for edge in edges:
+        source, target = edge.get("source"), edge.get("target")
+        if source not in paths or target not in paths:
+            continue
+        src, dst = area(source), area(target)
+        if src != dst and src in groups and dst in groups:
+            aggregate[(src, dst)] = aggregate.get((src, dst), 0) + 1
+    for (src, dst), count in sorted(aggregate.items()):
+        lines.append(f'    {ids[src]} -->|imports: {count}| {ids[dst]}')
+    if not groups:
+        lines.append('    EMPTY["No supported source modules found"]')
+    lines.append('    NOTE["Arrows represent resolved static imports, not runtime calls"]:::note')
     return "\n".join(lines)
 
 def run_agents(repo, scan):
