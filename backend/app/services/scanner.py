@@ -65,6 +65,130 @@ def facts_text(path, src):
     return out
 
 
+def _strip_json_comments(source):
+    """Remove // and /* */ comments while preserving comment-like text in strings."""
+    result = []
+    index = 0
+    in_string = False
+    escaped = False
+    quote = ""
+    while index < len(source):
+        char = source[index]
+        next_char = source[index + 1] if index + 1 < len(source) else ""
+        if in_string:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                in_string = False
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            in_string = True
+            quote = char
+            result.append(char)
+            index += 1
+            continue
+        if char == "/" and next_char == "/":
+            while index < len(source) and source[index] not in "\r\n":
+                index += 1
+            continue
+        if char == "/" and next_char == "*":
+            index += 2
+            while index + 1 < len(source) and source[index:index + 2] != "*/":
+                index += 1
+            index = min(index + 2, len(source))
+            result.append(" ")
+            continue
+        result.append(char)
+        index += 1
+    return "".join(result)
+
+
+def _load_ts_configs(manifests):
+    """Read repository tsconfig/jsconfig path aliases from already-scanned manifests."""
+    configs = []
+    for config_path, raw in (manifests or {}).items():
+        if Path(config_path).name not in {"tsconfig.json", "jsconfig.json"}:
+            continue
+        try:
+            cleaned = _strip_json_comments(raw)
+            cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+            config = json.loads(cleaned)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        compiler = config.get("compilerOptions", {})
+        config_dir = Path(config_path).parent
+        base_url = compiler.get("baseUrl")
+        base_dir = (config_dir / base_url).as_posix() if base_url else config_dir.as_posix()
+        paths = compiler.get("paths", {})
+        if isinstance(paths, dict):
+            configs.append({
+                "directory": config_dir.as_posix(),
+                "base_dir": Path(base_dir).as_posix(),
+                "paths": paths,
+            })
+    # More deeply nested configs take precedence over parent configs.
+    return sorted(configs, key=lambda item: len(Path(item["directory"]).parts), reverse=True)
+
+
+def _is_within(path, directory):
+    directory = directory.rstrip("/")
+    return not directory or path == directory or path.startswith(directory + "/")
+
+
+def _resolve_import_candidates(source_path, import_name, language, ts_configs):
+    """Return candidate paths for relative, baseUrl and configured TS/JS alias imports."""
+    if language not in JS_EXTENSIONS:
+        return _candidate_paths(source_path, import_name, language)
+
+    candidates = []
+    source = Path(source_path).as_posix()
+    matching_configs = [
+        config for config in ts_configs
+        if _is_within(source, config["directory"])
+    ]
+
+    if import_name.startswith("."):
+        bases = [(Path(source_path).parent / import_name).as_posix()]
+    else:
+        bases = []
+        for config in matching_configs:
+            for pattern, replacements in config["paths"].items():
+                if not isinstance(replacements, list):
+                    continue
+                if "*" in pattern:
+                    prefix, suffix = pattern.split("*", 1)
+                    if not import_name.startswith(prefix) or not import_name.endswith(suffix):
+                        continue
+                    middle = import_name[len(prefix):len(import_name) - len(suffix) if suffix else None]
+                    for replacement in replacements:
+                        if isinstance(replacement, str):
+                            target = replacement.replace("*", middle)
+                            bases.append((Path(config["base_dir"]) / target).as_posix())
+                elif import_name == pattern:
+                    bases.extend(
+                        (Path(config["base_dir"]) / target).as_posix()
+                        for target in replacements if isinstance(target, str)
+                    )
+        # TypeScript also permits baseUrl-based imports without an explicit paths alias.
+        for config in matching_configs:
+            bases.append((Path(config["base_dir"]) / import_name).as_posix())
+
+    for base in bases:
+        candidates.append(base)
+        for extension in JS_EXTENSIONS:
+            candidates.append(base + extension)
+        for extension in JS_EXTENSIONS:
+            candidates.append((Path(base) / ("index" + extension)).as_posix())
+        # CommonJS/TypeScript projects frequently omit JSON extensions in imports.
+        candidates.append(base + ".json")
+
+    return list(dict.fromkeys(Path(item).as_posix() for item in candidates))
+
+
 def _candidate_paths(source_path, import_name, language):
     """Return plausible repository-relative targets for a local import."""
     candidates = []
@@ -93,9 +217,10 @@ def _candidate_paths(source_path, import_name, language):
     return [Path(item).as_posix() for item in candidates]
 
 
-def build_dependency_graph(files):
-    """Resolve only repository-local imports; unresolved third-party imports are not edges."""
+def build_dependency_graph(files, manifests=None):
+    """Resolve repository-local imports, including tsconfig/jsconfig path aliases."""
     paths = {item["path"] for item in files}
+    ts_configs = _load_ts_configs(manifests or {})
     nodes = [
         {
             "id": item["path"],
@@ -114,22 +239,25 @@ def build_dependency_graph(files):
         source = item["path"]
         language = item["language"]
         for import_name in item["facts"].get("imports", []):
-            targets = _candidate_paths(source, import_name, language)
+            targets = _resolve_import_candidates(source, import_name, language, ts_configs)
             resolved = []
             for candidate in targets:
-                matches = [
-                    path for path in paths
-                    if path == candidate or path.endswith("/" + candidate)
-                ]
-                if len(matches) == 1:
-                    resolved.append(matches[0])
-                elif len(matches) > 1:
-                    unresolved.append({
-                        "source": source,
-                        "import": import_name,
-                        "reason": f"Ambiguous local module path: {candidate}",
-                    })
-            target = resolved[0] if resolved else None
+                if candidate in paths:
+                    resolved.append(candidate)
+                else:
+                    matches = [
+                        path for path in paths
+                        if path.endswith("/" + candidate)
+                    ]
+                    if len(matches) == 1:
+                        resolved.append(matches[0])
+                    elif len(matches) > 1:
+                        unresolved.append({
+                            "source": source,
+                            "import": import_name,
+                            "reason": f"Ambiguous local module path: {candidate}",
+                        })
+            target = next((item for item in resolved if item != source), None)
             if target:
                 edges.append({
                     "source": source,
@@ -139,6 +267,15 @@ def build_dependency_graph(files):
                     "confidence": "high",
                 })
             elif import_name.startswith(".") or (
+                language in JS_EXTENSIONS
+                and not import_name.startswith(".")
+                and any(
+                    import_name == pattern
+                    or ("*" in pattern and import_name.startswith(pattern.split("*", 1)[0]))
+                    for config in ts_configs
+                    for pattern in config["paths"]
+                )
+            ) or (
                 language == ".py"
                 and import_name
                 and any(import_name.split(".")[0] in Path(path).parts for path in paths)
@@ -148,15 +285,14 @@ def build_dependency_graph(files):
                     "import": import_name,
                     "reason": "No matching repository file found",
                 })
-    # Stable, duplicate-free output makes reports and tests deterministic.
     unique_edges = {(e["source"], e["target"], e["evidence"]): e for e in edges}
     return {
         "nodes": nodes,
         "edges": sorted(unique_edges.values(), key=lambda e: (e["source"], e["target"], e["evidence"])),
         "unresolved_local_imports": unresolved[:300],
         "relationship_scope": "Resolved repository-local imports only; this is not a complete runtime call graph.",
+        "typescript_configs": [config["directory"] for config in ts_configs],
     }
-
 
 def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_tests):
     found = []
@@ -205,7 +341,7 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
             functions.update(facts["functions"])
             found.append({"path": relpath, "language": ext, "bytes": size, "facts": facts})
 
-    dependency_graph = build_dependency_graph(found)
+    dependency_graph = build_dependency_graph(found, manifests)
     return {
         "file_count": len(found),
         "total_bytes_scanned": total,
