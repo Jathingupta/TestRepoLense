@@ -419,53 +419,90 @@ def validation_agent(state):
 
 def diagram(architecture, scan):
     """
-    Render repository-local import relationships discovered by the scanner.
-    No sequential or inferred edges are added.
+    Build a grouped module architecture view from resolved repository imports.
+    Groups are based on actual repository paths; arrows remain explicitly labelled
+    as imports and are never presented as runtime calls.
     """
     graph_data = scan.get("dependency_graph") or {}
     nodes = graph_data.get("nodes", [])
     edges = graph_data.get("edges", [])
 
-    # Keep diagrams readable for large repositories.
-    visible_nodes = nodes[:30]
-    node_ids = {
-        node["path"]: f"N{index}"
-        for index, node in enumerate(visible_nodes)
-        if node.get("path")
+    node_paths = {
+        node.get("path") for node in nodes
+        if isinstance(node, dict) and node.get("path")
     }
+    degree = {path: 0 for path in node_paths}
+    valid_edges = []
+    for edge in edges:
+        source, target = edge.get("source"), edge.get("target")
+        if source in node_paths and target in node_paths:
+            valid_edges.append(edge)
+            degree[source] = degree.get(source, 0) + 1
+            degree[target] = degree.get(target, 0) + 1
 
+    # Prioritize connected modules so the diagram communicates structure.
+    max_nodes = 45
+    if len(node_paths) > max_nodes:
+        selected = set(sorted(node_paths, key=lambda path: (-degree.get(path, 0), path))[:max_nodes])
+    else:
+        selected = node_paths
+
+    def group_for(path):
+        parts = path.replace("\\", "/").split("/")
+        if len(parts) > 1 and parts[0] == "app":
+            return "/".join(parts[:2])
+        return parts[0] if len(parts) > 1 else "repository root"
+
+    groups = {}
+    for path in sorted(selected):
+        groups.setdefault(group_for(path), []).append(path)
+
+    def safe_id(prefix, value):
+        token = re.sub(r"[^A-Za-z0-9_]", "_", value)
+        if not token or token[0].isdigit():
+            token = "X_" + token
+        return prefix + token
+
+    node_ids = {path: f"N{index}" for index, path in enumerate(sorted(selected))}
+    group_ids = {group: safe_id("G_", group) for group in groups}
     lines = [
         "flowchart LR",
-        '    classDef source fill:#e8f1ff,stroke:#3267a8,color:#142b45;',
-        '    classDef isolated fill:#f4f4f5,stroke:#71717a,color:#27272a;'
+        "    %% Groups reflect repository folders; arrows are static import evidence.",
+        '    classDef module fill:#eaf2ff,stroke:#4778b8,color:#172b4d;',
+        '    classDef feature fill:#f1f5f9,stroke:#64748b,color:#1e293b;'
     ]
 
-    for path, node_id in node_ids.items():
-        label = path.replace("\\", "/")
-        label = re.sub(r"[^A-Za-z0-9_./ -]", "", label)[-65:]
-        lines.append(f'    {node_id}["{label}"]')
+    for group, paths in groups.items():
+        lines.append(f'    subgraph {group_ids[group]}["{group}"]')
+        lines.append("        direction TB")
+        for path in paths:
+            label = path.replace("\\", "/")
+            label = re.sub(r'["<>]', "", label)
+            label = label[-72:]
+            lines.append(f'        {node_ids[path]}["{label}"]:::module')
+        lines.append("    end")
+        lines.append(f"    class {group_ids[group]} feature")
 
-    rendered_edges = 0
-    for edge in edges:
-        source = edge.get("source")
-        target = edge.get("target")
+    visible_edges = 0
+    for edge in valid_edges:
+        source, target = edge.get("source"), edge.get("target")
         if source in node_ids and target in node_ids:
             lines.append(f'    {node_ids[source]} -->|imports| {node_ids[target]}')
-            rendered_edges += 1
-            if rendered_edges >= 60:
+            visible_edges += 1
+            if visible_edges >= 90:
                 break
 
-    if not rendered_edges:
-        lines.append('    NoEdges["No repository-local import relationships resolved"]')
-        lines.append('    NoEdges:::isolated')
-
-    if len(nodes) > len(visible_nodes):
+    if not selected:
+        lines.append('    Empty["No source modules detected"]')
+    if not visible_edges and selected:
+        lines.append('    Note["No resolved local import edges in this view"]')
+    if len(node_paths) > len(selected):
         lines.append(
-            f'    More["{len(nodes) - len(visible_nodes)} additional files omitted from this view"]'
+            f'    Omitted["Showing {len(selected)} of {len(node_paths)} modules; '
+            f'{len(node_paths) - len(selected)} lower-connectivity modules omitted"]'
         )
 
     return "\n".join(lines)
-
 
 def run_agents(repo, scan):
 
