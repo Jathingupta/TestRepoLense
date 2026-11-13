@@ -112,6 +112,45 @@ def _add_page_number(paragraph):
     _append_field(paragraph.add_run(), "PAGE")
 
 
+
+def _is_markdown_table_row(line):
+    stripped = line.strip()
+    return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2
+
+
+def _markdown_cells(line):
+    return [_clean_inline(cell) for cell in line.strip().strip("|").split("|")]
+
+
+def _add_markdown_table(document, rows):
+    if not rows:
+        return
+    headers = _markdown_cells(rows[0])
+    data_rows = [
+        _markdown_cells(row) for row in rows[1:]
+        if not re.match(r"^\\s*\\|?\\s*:?-{3,}", row)
+    ]
+    column_count = max(1, len(headers))
+    table = document.add_table(rows=1, cols=column_count)
+    table.style = "Light Shading Accent 1"
+    table.autofit = True
+    for index in range(column_count):
+        cell = table.rows[0].cells[index]
+        cell.text = headers[index] if index < len(headers) else ""
+        for run in cell.paragraphs[0].runs:
+            run.bold = True
+            run.font.size = Pt(8.5)
+    for row_data in data_rows:
+        cells = table.add_row().cells
+        for index in range(column_count):
+            cells[index].text = row_data[index] if index < len(row_data) else ""
+            for paragraph in cells[index].paragraphs:
+                paragraph.paragraph_format.space_after = Pt(2)
+                for run in paragraph.runs:
+                    run.font.size = Pt(8)
+    document.add_paragraph()
+
+
 def render_docx(markdown, output, repository="Repository", diagram_png=None):
     """Create an editable, styled Word report from the generated technical design."""
     document = Document()
@@ -169,8 +208,22 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
 
     document.add_page_break()
     document.add_heading("Contents", level=1)
-    p = document.add_paragraph()
-    _append_field(p.add_run(), 'TOC \\o "1-3" \\h \\z')
+    # Build a populated, reliable contents list from the same headings used below.
+    # Unlike a field-only TOC, these entries are visible immediately in Word previews.
+    for raw in markdown.splitlines():
+        heading = re.match(r"^(#{1,3})\\s+(.+?)\\s*$", raw)
+        if not heading:
+            continue
+        level = len(heading.group(1))
+        title = _clean_inline(heading.group(2))
+        if title.lower() in {"technical design document"}:
+            continue
+        entry = document.add_paragraph()
+        entry.paragraph_format.left_indent = Inches(0.22 * (level - 1))
+        entry.paragraph_format.space_after = Pt(3)
+        run = entry.add_run(title)
+        run.font.size = Pt(10 if level == 1 else 9)
+        run.bold = level == 1
 
     document.add_page_break()
     if diagram_png and Path(diagram_png).is_file():
@@ -184,25 +237,37 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
 
     in_code, code_lines = False, []
     fence = chr(96) * 3
-    for raw_line in markdown.splitlines():
-        line = raw_line.rstrip()
+    markdown_lines = markdown.splitlines()
+    index = 0
+    while index < len(markdown_lines):
+        line = markdown_lines[index].rstrip()
         if line.startswith(fence):
             if in_code:
                 paragraph = document.add_paragraph()
                 paragraph.paragraph_format.left_indent = Inches(0.18)
                 paragraph.paragraph_format.right_indent = Inches(0.18)
-                run = paragraph.add_run("\n".join(code_lines))
+                run = paragraph.add_run("\\n".join(code_lines))
                 run.font.name = "Consolas"
                 run.font.size = Pt(8)
                 run.font.color.rgb = RGBColor(55, 65, 81)
                 code_lines, in_code = [], False
             else:
                 in_code = True
+            index += 1
             continue
         if in_code:
             code_lines.append(line)
+            index += 1
             continue
         if not line.strip():
+            index += 1
+            continue
+        if _is_markdown_table_row(line):
+            table_rows = []
+            while index < len(markdown_lines) and _is_markdown_table_row(markdown_lines[index]):
+                table_rows.append(markdown_lines[index].rstrip())
+                index += 1
+            _add_markdown_table(document, table_rows)
             continue
         if line.startswith("# "):
             document.add_heading(_clean_inline(line[2:]), level=1)
@@ -214,16 +279,22 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
             document.add_heading(_clean_inline(line[5:]), level=3)
         elif line.startswith(("- ", "* ")):
             document.add_paragraph(_clean_inline(line[2:]), style="List Bullet")
-        elif re.match(r"^\d+[.)]\s+", line):
-            document.add_paragraph(_clean_inline(re.sub(r"^\d+[.)]\s+", "", line)), style="List Number")
+        elif re.match(r"^\\d+[.)]\\s+", line):
+            document.add_paragraph(_clean_inline(re.sub(r"^\\d+[.)]\\s+", "", line)), style="List Number")
         else:
             document.add_paragraph(_clean_inline(line))
+        index += 1
 
     if in_code and code_lines:
         paragraph = document.add_paragraph()
         run = paragraph.add_run("\n".join(code_lines))
         run.font.name = "Consolas"
         run.font.size = Pt(8)
+
+    settings = document.settings.element
+    update_fields = OxmlElement("w:updateFields")
+    update_fields.set(qn("w:val"), "true")
+    settings.append(update_fields)
 
     document.core_properties.title = f"{repository} - Software Architecture and Technical Design"
     document.core_properties.subject = "Evidence-led repository architecture analysis"
