@@ -6,3 +6,4 @@ langgraph==0.2.74
 langchain-core==0.3.40
 langchain-openai==0.3.7
 reportlab==4.2.5
+python-docx==1.1.2

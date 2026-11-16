@@ -8,7 +8,7 @@ from app.models import AnalyzeRequest,AnalyzeResponse
 from app.services.repository import clone_repository,RepositoryError
 from app.services.scanner import scan_repository
 from app.agents.graph import run_agents
-from app.services.render import render_pdf,render_svg
+from app.services.render import render_pdf,render_svg,render_png,render_docx
 GENERATED=Path(__file__).resolve().parents[1]/"generated"; GENERATED.mkdir(exist_ok=True)
 app=FastAPI(title="RepoLens API",version="1.0.0")
 app.add_middleware(CORSMiddleware,allow_origins=settings.allowed_origins,allow_credentials=False,allow_methods=["GET","POST"],allow_headers=["Content-Type"])
@@ -27,17 +27,24 @@ def analyze(req:AnalyzeRequest):
         (folder/"technical-design.md").write_text(result["technical_design"],encoding="utf-8")
         render_pdf(result["technical_design"],folder/"technical-design.pdf")
         svg=render_svg(result["architecture_mermaid"],folder/"architecture.svg")
+        png=render_png(result["architecture_mermaid"],folder/"architecture.png")
+        render_docx(
+            result["technical_design"],
+            folder/"architecture-report.docx",
+            repository=name,
+            diagram_png=folder/"architecture.png" if png else None,
+        )
         safe={k:v for k,v in scan.items() if k!="code_evidence"}
         analysis={"repository":name,"architecture":result["architecture"],"scan":safe,"llm_used":result["llm_used"]}
         (folder/"analysis.json").write_text(json.dumps(analysis,indent=2,ensure_ascii=False),encoding="utf-8")
         return AnalyzeResponse(analysis_id=aid,repository=name,summary=result["architecture"].get("summary","Analysis complete."),
         architecture_mermaid=result["architecture_mermaid"],technical_design_markdown=result["technical_design"],analysis=analysis,llm_used=result["llm_used"],
-        downloads={"markdown":f"/api/reports/{aid}/technical-design.md","pdf":f"/api/reports/{aid}/technical-design.pdf","mermaid":f"/api/reports/{aid}/architecture.mmd","svg":f"/api/reports/{aid}/architecture.svg" if svg else "","json":f"/api/reports/{aid}/analysis.json"})
+        downloads={"markdown":f"/api/reports/{aid}/technical-design.md","pdf":f"/api/reports/{aid}/technical-design.pdf","mermaid":f"/api/reports/{aid}/architecture.mmd","svg":f"/api/reports/{aid}/architecture.svg" if svg else "","json":f"/api/reports/{aid}/analysis.json","docx":f"/api/reports/{aid}/architecture-report.docx"})
     except RepositoryError as e: raise HTTPException(status_code=400,detail=str(e))
     except Exception as e: raise HTTPException(status_code=500,detail=f"Analysis failed: {type(e).__name__}: {e}")
     finally:
         if temp: temp.cleanup()
-ALLOWED={"technical-design.md","technical-design.pdf","architecture.mmd","architecture.svg","analysis.json"}
+ALLOWED={"technical-design.md","technical-design.pdf","architecture.mmd","architecture.svg","analysis.json","architecture-report.docx"}
 @app.get("/api/reports/{analysis_id}/{filename}")
 def download(analysis_id:str,filename:str):
     if not re.fullmatch(r"[a-f0-9]{32}",analysis_id) or filename not in ALLOWED: raise HTTPException(status_code=404,detail="Report not found")
