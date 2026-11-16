@@ -491,7 +491,7 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
             total += size
             ext = path.suffix.lower() or name
             langs[ext] += 1
-            facts = facts_py(src) if ext == ".py" else facts_text(path, src)
+            facts = facts_py(src) if ext == ".py" else facts_text(Path(relpath), src)
             imports.update(facts["imports"])
             routes.update(facts["routes"])
             tables.update(facts["tables"])
