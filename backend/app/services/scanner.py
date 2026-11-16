@@ -371,6 +371,7 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
     manifests = {}
     langs = Counter()
     imports, routes, tables, classes, functions = set(), set(), set(), set(), set()
+    api_handlers, api_calls, integrations, env_vars = set(), set(), set(), set()
     total = 0
     tree = []
 
@@ -411,6 +412,10 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
             tables.update(facts["tables"])
             classes.update(facts["classes"])
             functions.update(facts["functions"])
+            api_handlers.update(facts.get("api_handlers", []))
+            api_calls.update(facts.get("api_calls", []))
+            integrations.update(facts.get("integrations", []))
+            env_vars.update(facts.get("environment_variables", []))
             found.append({"path": relpath, "language": ext, "bytes": size, "facts": facts})
 
     dependency_graph = build_dependency_graph(found, manifests)
@@ -427,5 +432,9 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
         "database_tables": sorted(tables)[:120],
         "classes": sorted(classes)[:150],
         "functions": sorted(functions)[:200],
+        "api_handlers": sorted(api_handlers),
+        "api_calls": sorted(api_calls),
+        "integrations": sorted(integrations),
+        "environment_variables": sorted(env_vars),
         "dependency_graph": dependency_graph,
     }
