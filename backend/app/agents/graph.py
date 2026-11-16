@@ -118,6 +118,7 @@ def _architecture_evidence(scan):
             "routes": facts.get("routes", [])[:12],
             "api_handlers": facts.get("api_handlers", [])[:10],
             "api_calls": facts.get("api_calls", [])[:12],
+            "api_call_details": facts.get("api_call_details", [])[:20],
             "tables": facts.get("tables", [])[:20],
             "database_operations": facts.get("database_operations", [])[:12],
             "integrations": facts.get("integrations", [])[:12],
@@ -417,6 +418,26 @@ def make_tdd(repo, scan, architecture):
         ["Method", "Route", "Source file", "Detected request fields", "Response pattern"],
         endpoint_rows
     ) if endpoint_rows else ["- API handlers were not detected from static analysis."])
+
+    lines += ["### Client-to-API call evidence"]
+    call_rows = []
+    endpoints = scan.get("api_endpoints", [])
+    for call in scan.get("api_call_details", []):
+        requested_route = re.sub(r"^/api(?=/|$)", "", call.get("url", "").split("?", 1)[0])
+        matched = [
+            endpoint for endpoint in endpoints
+            if endpoint.get("route") == requested_route
+            and endpoint.get("method") == call.get("method")
+        ]
+        call_rows.append([
+            call.get("source"), call.get("method"), call.get("url"),
+            ", ".join(endpoint.get("path") for endpoint in matched) or "No matching scanned endpoint",
+            "Matched by static URL and HTTP method" if matched else "Unmatched in scanned route inventory",
+        ])
+    lines.extend(_md_table(
+        ["Client source file", "Method", "Requested URL", "Matched API handler", "Match basis"],
+        call_rows
+    ) if call_rows else ["- No statically identifiable fetch or Axios URL calls were detected."])
 
     lines += ["## 8. Data layer"]
     data_rows = []
