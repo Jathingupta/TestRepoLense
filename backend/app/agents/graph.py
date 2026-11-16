@@ -487,7 +487,11 @@ def documentation_agent(state):
             "repository_tree",
             "manifests",
             "routes",
+            "api_handlers",
+            "api_calls",
             "database_tables",
+            "integrations",
+            "environment_variables",
             "imports",
             "dependency_graph"
         )
@@ -496,15 +500,22 @@ def documentation_agent(state):
             key: scan.get(key)
             for key in keys
         }
+        evidence["file_level_behavior"] = _architecture_evidence(scan)
 
         prompt = (
-            "Write a complete Markdown technical design document "
-            "covering summary, scope, technology stack, repository "
-            "structure, architecture, components, flows, APIs, data, "
-            "dependencies, configuration, security, deployment, "
-            "operations, risks and evidence. Include a dedicated module dependency section "
-            "using dependency_graph edges and list unresolved local imports separately. "
-            "Do not describe import edges as proof of runtime calls.\n\n"
+            "Write a complete, evidence-led Markdown technical design document. Explain the "
+            "actual product capabilities and user workflows, not just folders, classes or object "
+            "names. For each capability, describe the user action, UI entry point, API handler, "
+            "service logic, external provider and data read/write path when the supplied evidence "
+            "supports each link. Include concrete API methods/routes, database tables/operations, "
+            "authentication/payment/maps integrations and configuration variables. Use concise "
+            "Markdown tables for component responsibilities, API surface, data entities and "
+            "external integrations; include evidence file paths in each row. Distinguish confirmed "
+            "static evidence from inferred runtime sequence, and explicitly mark unknown details. "
+            "Include summary, scope, technology stack, architecture, workflows, APIs, data, "
+            "dependencies, configuration, security, deployment, operations and limitations. "
+            "Include a dedicated module dependency section using dependency_graph edges and list "
+            "unresolved local imports separately. Do not describe import edges as proof of runtime calls.\n\n"
             "Use only the supplied evidence. Mark unknowns as "
             "'Not detected from static analysis'. Never fabricate.\n\n"
             f"Repository: {state['repository']}\n\n"
