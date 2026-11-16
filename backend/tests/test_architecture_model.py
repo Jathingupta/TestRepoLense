@@ -76,3 +76,33 @@ def test_validate_architecture_requires_evidence_for_components():
 
     validated = validate_architecture(model, sample_scan())
     assert "made_up" not in {item["id"] for item in validated["components"]}
+
+
+
+def test_diagram_limits_relationship_edges_for_readability():
+    model = sample_model()
+    model["components"].append({
+        "id": "second_service",
+        "name": "Second service",
+        "layer": "application",
+        "description": "Another service",
+        "evidence_paths": ["app/api/ride.ts"],
+    })
+    model["relationships"] = []
+    for index in range(25):
+        model["relationships"].append({
+            "source": "booking_screen",
+            "target": "ride_service" if index % 2 == 0 else "second_service",
+            "type": "calls",
+            "label": f"relationship {index}",
+            "evidence_paths": ["app/screens/BookRide.tsx", "app/services/ride.ts"]
+                if index % 2 == 0
+                else ["app/screens/BookRide.tsx", "app/api/ride.ts"],
+            "confidence": "high",
+        })
+
+    validated = validate_architecture(model, sample_scan())
+    output = diagram(validated, sample_scan())
+
+    assert output.count("-->") <= 2
+    assert "simplified subset" in output
