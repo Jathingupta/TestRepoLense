@@ -192,6 +192,10 @@ def test_scanner_extracts_behavioral_evidence_for_architecture(tmp_path):
     assert "rides" in api["facts"]["tables"]
     assert "fetch" in ui["facts"]["api_calls"]
     assert "submitRide" in ui["facts"]["ui_actions"]
+    assert ui["facts"]["api_call_details"][0] == {
+        "method": "POST", "url": "/api/ride/create"
+    }
+    assert result["api_call_details"][0]["source"] == "app/home.tsx"
     assert ui["facts"]["evidence_snippets"]
 
 
@@ -241,5 +245,6 @@ def test_scanner_extracts_sql_table_names_without_package_or_variable_noise(tmp_
 
     assert "rides" in result["database_tables"]
     assert "drivers" in result["database_tables"]
+    assert "SELECT" in result["files"][0]["facts"]["database_operations"]
     assert "package" not in result["database_tables"]
     assert "auto" not in result["database_tables"]
