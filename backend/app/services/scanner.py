@@ -119,7 +119,7 @@ def facts_text(path, src):
 
     signal = re.compile(
         r"fetch\s*\(|axios\.|\.from\s*\(|payment|stripe|clerk|auth|"
-        r"neon\(|sql\s*|MapView|Location\.|router\.(?:push|replace)|"
+        r"neon\(|\bsql\b|MapView|Location\.|router\.(?:push|replace)|"
         r"onPress|onClick|export\s+(?:async\s+)?(?:function|const)\s+(?:GET|POST|PUT|PATCH|DELETE)",
         re.I
     )
