@@ -116,7 +116,14 @@ def _architecture_evidence(scan):
             "path": item.get("path"), "language": item.get("language"),
             "imports": facts.get("imports", [])[:20],
             "routes": facts.get("routes", [])[:12],
-            "tables": facts.get("tables", [])[:12],
+            "api_handlers": facts.get("api_handlers", [])[:10],
+            "api_calls": facts.get("api_calls", [])[:12],
+            "tables": facts.get("tables", [])[:20],
+            "database_operations": facts.get("database_operations", [])[:12],
+            "integrations": facts.get("integrations", [])[:12],
+            "environment_variables": facts.get("environment_variables", [])[:12],
+            "ui_actions": facts.get("ui_actions", [])[:12],
+            "evidence_snippets": facts.get("evidence_snippets", [])[:12],
             "classes": facts.get("classes", [])[:12],
             "functions": facts.get("functions", [])[:20],
         })
@@ -186,9 +193,17 @@ def architecture_agent(state):
         "The response must be complete and must match this schema "
         "(examples are placeholders, not repository facts):\n"
         f"{json.dumps(schema, ensure_ascii=False)}\n\n"
-        "Create a meaningful layered system architecture, NOT a folder or file inventory. "
-        "Identify screens/routing, state, application services, API handlers, persistence, "
-        "and external integrations only when supported by source-code usage. "
+        "Create a product- and behavior-oriented architecture, NOT a folder, file, class, "
+        "or object inventory. Infer the application's actual business capabilities from the "
+        "combined evidence: screens and user actions, API handlers and methods, outgoing API calls, "
+        "database operations/table names, authentication/payment/maps integrations, and source "
+        "snippets. Name components by their responsibility (for example 'Ride creation endpoint' "
+        "or 'Driver discovery/map experience'), not by directory names or generic labels such as "
+        "'module_1', 'utilities', or 'components'. Explain each component in terms of inputs, "
+        "work performed, outputs, and downstream dependencies when evidence supports those details. "
+        "Identify end-to-end user workflows by connecting UI actions to API handlers, service logic, "
+        "external providers and persistence. Do not claim a runtime call merely because an import "
+        "exists: distinguish direct code evidence from inferred sequence. "
         "A package manifest proves a dependency is declared, not that it is actively integrated. "
         "External integrations must cite source files showing imports, initialization or API usage. "
         "Every component must cite exact evidence_paths from evidence.files or evidence.manifests. "
@@ -196,8 +211,8 @@ def architecture_agent(state):
         "Every flow must cite exact scanned paths and include only components in the supported sequence. "
         "Imports prove module dependency, not runtime calls. Label inferred runtime behavior with "
         "confidence='inferred'. Never invent paths, APIs, providers, databases, infrastructure or "
-        "business flows. Omit relationships that cannot be supported. Use clear component names "
-        "and concise responsibilities.\n\n"
+        "business flows. Omit relationships that cannot be supported. Prefer fewer specific, "
+        "well-explained components over many generic categories.\n\n"
         f"Repository: {state['repository']}\nEvidence:\n{evidence_text}"
     )
     messages = [
