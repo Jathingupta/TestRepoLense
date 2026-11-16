@@ -126,7 +126,7 @@ def facts_text(path, src):
     for number, line in enumerate(src.splitlines(), 1):
         if signal.search(line):
             # Do not copy credential-bearing source lines into prompts or reports.
-            if re.search(r"(?i)(api[_-]?key|secret|password|access[_-]?token|private[_-]?key)\\s*[:=]", line):
+            if re.search(r"(?i)(api[_-]?key|secret|password|access[_-]?token|private[_-]?key)\s*[:=]", line):
                 continue
             compact = line.strip()
             if compact and len(compact) <= 240:
