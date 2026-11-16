@@ -145,6 +145,10 @@ def facts_text(path, src):
             r"\x60([^\x60]*(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)[^\x60]*)\x60",
             src, re.I
         )
+        sql_blocks.extend(re.findall(
+            r"""["']([^"'\\]*(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)[^"'\\]*)["']""",
+            src, re.I | re.S
+        ))
         for sql in sql_blocks:
             out["database_operations"].extend(re.findall(
                 r"\b(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b", sql, re.I
