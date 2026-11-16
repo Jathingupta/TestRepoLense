@@ -154,3 +154,40 @@ def test_scanner_reports_unresolved_configured_alias(tmp_path):
         and item["import"] == "@/components/Missing"
         for item in unresolved
     )
+
+
+
+def test_scanner_extracts_behavioral_evidence_for_architecture(tmp_path):
+    api_dir = tmp_path / "app" / "(api)" / "ride"
+    api_dir.mkdir(parents=True)
+    (api_dir / "create+api.ts").write_text(
+        "import { neon } from '@neondatabase/serverless';\n"
+        "import { auth } from '@clerk/clerk-expo';\n"
+        "export async function POST(request) {\n"
+        "  const sql = neon(process.env.DATABASE_URL);\n"
+        "  const rows = await sql('SELECT * FROM rides');\n"
+        "  return Response.json(rows);\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "app" / "home.tsx").write_text(
+        "export default function Home() {\n"
+        "  const submitRide = async () => fetch('/api/ride/create', { method: 'POST' });\n"
+        "  return <Button onPress={submitRide} />;\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    result = scan_repository(tmp_path, 100, 10000, 100000, True)
+    api = next(item for item in result["files"] if item["path"].endswith("create+api.ts"))
+    ui = next(item for item in result["files"] if item["path"] == "app/home.tsx")
+
+    assert "POST" in api["facts"]["api_handlers"]
+    assert any("file route:" in route for route in api["facts"]["routes"])
+    assert "Neon/PostgreSQL" in api["facts"]["integrations"]
+    assert "Clerk authentication" in api["facts"]["integrations"]
+    assert "DATABASE_URL" in api["facts"]["environment_variables"]
+    assert "rides" in api["facts"]["tables"]
+    assert "fetch" in ui["facts"]["api_calls"]
+    assert "submitRide" in ui["facts"]["ui_actions"]
+    assert ui["facts"]["evidence_snippets"]
