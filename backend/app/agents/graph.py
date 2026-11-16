@@ -51,24 +51,56 @@ def llm_client():
 # --------------------------------------------------
 
 def extract_json(raw):
-    """
-    Extract JSON from an LLM response.
-    Handles responses wrapped in Markdown code fences.
-    """
+    """Parse a JSON object from a model response, including fenced responses."""
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("The model returned an empty response")
 
-    raw = raw.strip()
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
 
-    # Remove Markdown code fences if present
-    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
-    raw = re.sub(r"\s*```$", "", raw)
+    start = cleaned.find("{")
+    if start < 0:
+        raise ValueError("No JSON object found in model response")
 
-    # Extract the JSON object
-    match = re.search(r"\{[\s\S]*\}", raw)
+    # raw_decode avoids the greedy-brace matching that can accidentally include
+    # explanatory text after the JSON object.
+    try:
+        value, _ = json.JSONDecoder().raw_decode(cleaned[start:])
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f"Invalid JSON at character {error.pos}: {error.msg}"
+        ) from error
 
-    if not match:
-        raise ValueError("No JSON object found in LLM response")
+    if not isinstance(value, dict):
+        raise ValueError("Architecture response must be a JSON object")
+    return value
 
-    return json.loads(match.group(0))
+
+def _message_text(message):
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
+
+def _response_diagnostics(message, raw):
+    metadata = getattr(message, "response_metadata", {}) or {}
+    usage = getattr(message, "usage_metadata", {}) or {}
+    finish_reason = metadata.get("finish_reason", "unknown")
+    excerpt = raw[:240].replace("\n", " ")
+    return (
+        f"finish_reason={finish_reason}, chars={len(raw)}, "
+        f"usage={usage or 'unavailable'}, excerpt={excerpt!r}"
+    )
 
 
 # --------------------------------------------------
@@ -144,34 +176,79 @@ def architecture_agent(state):
         "risks": ["Evidence-backed risk or limitation"]
     }
     evidence = _architecture_evidence(scan)
+    evidence_text = json.dumps(evidence, ensure_ascii=False)
+    # Keep the prompt bounded; the scanner's full inventory remains available
+    # to the report generator even when the LLM receives a compact evidence view.
+    evidence_text = evidence_text[:18000]
     prompt = (
-        "Act as a senior software architect. Return ONLY valid JSON matching this schema "
+        "Act as a senior software architect. Return one valid JSON object only. "
+        "Do not use Markdown fences, comments, trailing commas, or text outside JSON. "
+        "The response must be complete and must match this schema "
         "(examples are placeholders, not repository facts):\n"
         f"{json.dumps(schema, ensure_ascii=False)}\n\n"
         "Create a meaningful layered system architecture, NOT a folder or file inventory. "
         "Identify screens/routing, state, application services, API handlers, persistence, "
         "and external integrations only when supported by source-code usage. "
-        "A package manifest proves a dependency is declared, not that it is actively integrated. " "External integrations must cite source files showing imports, initialization or API usage. " "Every component must cite exact evidence_paths from evidence.files or evidence.manifests. "
-        "Every relationship must cite at least one path belonging to each connected component. Every flow must cite exact scanned paths and include only components in the supported sequence. Imports prove module "
-        "dependency, not runtime calls. Label inferred runtime behavior with confidence='inferred'. "
-        "Never invent paths, APIs, providers, databases, infrastructure or business flows. "
-        "Omit relationships that cannot be supported. Use clear component names and concise "
-        "responsibilities.\n\n"
-        f"Repository: {state['repository']}\n"
-        f"Evidence:\n{json.dumps(evidence, ensure_ascii=False)[:24000]}"
+        "A package manifest proves a dependency is declared, not that it is actively integrated. "
+        "External integrations must cite source files showing imports, initialization or API usage. "
+        "Every component must cite exact evidence_paths from evidence.files or evidence.manifests. "
+        "Every relationship must cite at least one path belonging to each connected component. "
+        "Every flow must cite exact scanned paths and include only components in the supported sequence. "
+        "Imports prove module dependency, not runtime calls. Label inferred runtime behavior with "
+        "confidence='inferred'. Never invent paths, APIs, providers, databases, infrastructure or "
+        "business flows. Omit relationships that cannot be supported. Use clear component names "
+        "and concise responsibilities.\n\n"
+        f"Repository: {state['repository']}\nEvidence:\n{evidence_text}"
     )
+    messages = [
+        SystemMessage(content=(
+            "Produce precise evidence-led software architecture. Never hallucinate repository "
+            "components or relationships. Output valid JSON only."
+        )),
+        HumanMessage(content=prompt)
+    ]
+
     try:
-        message = llm.invoke([
-            SystemMessage(content="Produce precise evidence-led software architecture. Never hallucinate repository components or relationships."),
-            HumanMessage(content=prompt)
-        ])
-        raw = message.content if isinstance(message.content, str) else str(message.content)
-        architecture = validate_architecture(extract_json(raw), scan)
+        # Groq's OpenAI-compatible JSON mode reduces malformed model responses.
+        json_llm = llm.bind(response_format={"type": "json_object"})
+        message = json_llm.invoke(messages)
+        raw = _message_text(message)
+
+        try:
+            parsed = extract_json(raw)
+        except ValueError as parse_error:
+            diagnostics = _response_diagnostics(message, raw)
+            print(
+                "Architecture agent JSON parse failed; requesting one correction. "
+                f"{parse_error}; {diagnostics}"
+            )
+            repair_messages = messages + [
+                message,
+                HumanMessage(content=(
+                    "Your previous response was not valid JSON. Correct the response and "
+                    "return the complete architecture as one valid JSON object only. "
+                    "Do not add Markdown or explanations. Preserve the required schema, "
+                    "use only the supplied evidence, and ensure all strings are correctly "
+                    "escaped and all arrays/objects are closed."
+                ))
+            ]
+            repaired_message = json_llm.invoke(repair_messages)
+            repaired_raw = _message_text(repaired_message)
+            try:
+                parsed = extract_json(repaired_raw)
+            except ValueError as repair_error:
+                print(
+                    "Architecture agent JSON correction failed; using evidence-based fallback. "
+                    f"{repair_error}; {_response_diagnostics(repaired_message, repaired_raw)}"
+                )
+                raise
+
+        architecture = validate_architecture(parsed, scan)
         if not architecture["components"]:
             raise ValueError("LLM returned no components tied to scanned source paths")
         return {"architecture": architecture, "llm_used": True}
     except Exception as error:
-        print(f"Architecture agent failed: {error}")
+        print(f"Architecture agent failed; using evidence-based fallback: {error}")
         return {"architecture": fallback_architecture(state["repository"], scan),
                 "llm_used": False}
 
