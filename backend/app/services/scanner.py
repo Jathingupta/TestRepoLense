@@ -49,8 +49,15 @@ def facts_py(src):
 
 
 def facts_text(path, src):
-    out = {"imports": [], "classes": [], "functions": [], "routes": [], "tables": []}
-    if path.suffix.lower() in {".js", ".jsx", ".ts", ".tsx"}:
+    """Extract repository evidence that helps explain behavior, not just file names."""
+    out = {
+        "imports": [], "classes": [], "functions": [], "routes": [], "tables": [],
+        "api_handlers": [], "api_calls": [], "database_operations": [],
+        "integrations": [], "environment_variables": [], "ui_actions": [],
+        "evidence_snippets": [],
+    }
+    suffix = path.suffix.lower()
+    if suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
         patterns = [
             r"\bfrom\s*['\"]([^'\"]+)['\"]",
             r"\bimport\s*['\"]([^'\"]+)['\"]",
@@ -60,11 +67,74 @@ def facts_text(path, src):
         out["imports"] = sorted({match for pattern in patterns for match in re.findall(pattern, src)})[:150]
         out["classes"] = re.findall(r"\bclass\s+([A-Za-z_$][\w$]*)", src)[:100]
         out["functions"] = re.findall(r"\bfunction\s+([A-Za-z_$][\w$]*)", src)[:100]
-        out["routes"] = re.findall(r"\.(?:get|post|put|patch|delete)\(['\"]([^'\"]+)", src, re.I)[:100]
-    if path.suffix.lower() == ".sql":
-        out["tables"] = re.findall(r"(?i)(?:from|join|into|table)\s+([A-Za-z_][\w.]*)", src)[:100]
-    return out
+        out["routes"] = re.findall(r"\.(?:get|post|put|patch|delete)\s*\(\s*['\"]([^'\"]+)", src, re.I)[:100]
 
+        # Expo Router and Next-style file routes, including method-export handlers.
+        if re.search(r"(^|/)\+?api\.(?:[cm]?[jt]sx?)$", path.as_posix(), re.I) or "/(api)/" in path.as_posix():
+            out["routes"].append("file route: " + path.as_posix())
+        for method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+            if re.search(r"\bexport\s+(?:async\s+)?(?:function|const)\s+" + method + r"\b", src):
+                out["api_handlers"].append(method)
+
+        out["api_calls"] = re.findall(
+            r"\b(fetch|axios\.(?:get|post|put|patch|delete)|client\.(?:get|post|put|patch|delete))\s*\(",
+            src
+        )[:40]
+        out["database_operations"] = re.findall(
+            r"\b(sql|db|database|prisma|supabase|drizzle)\s*\.", src, re.I
+        )[:40]
+        out["tables"] = re.findall(
+            r"(?:\.from\s*\(\s*['\"]|(?:FROM|JOIN|INTO|UPDATE)\s+)([A-Za-z_][A-Za-z0-9_.]*)",
+            src, re.I
+        )[:80]
+
+        integration_patterns = {
+            "Clerk authentication": r"@clerk/|useAuth\b|useUser\b|ClerkProvider|auth\(\)",
+            "Stripe payments": r"@stripe/|StripeProvider|PaymentSheet|paymentIntents|stripe\.",
+            "Neon/PostgreSQL": r"@neondatabase/|neon\(|DATABASE_URL|postgres(?:ql)?://",
+            "Maps/location": r"react-native-maps|MapView|Location\.",
+            "Push notifications": r"expo-notifications|Notifications\.",
+            "OAuth": r"GoogleSignin|OAuth|signInWithOAuth",
+        }
+        for label, pattern in integration_patterns.items():
+            if re.search(pattern, src, re.I):
+                out["integrations"].append(label)
+
+        out["environment_variables"] = sorted(set(re.findall(
+            r"\b(?:process\.env|import\.meta\.env)\.([A-Z][A-Z0-9_]*)",
+            src
+        )))[:50]
+        out["ui_actions"] = sorted(set(re.findall(
+            r"\b(?:onPress|onClick)\s*=\s*\{?\s*(?:async\s*)?\(?\s*([A-Za-z_$][\w$]*)",
+            src
+        )))[:40]
+
+    if suffix == ".sql":
+        out["tables"] = re.findall(
+            r"(?i)(?:from|join|into|update|table)\s+([A-Za-z_][A-Za-z0-9_.]*)", src
+        )[:100]
+        out["database_operations"] = re.findall(
+            r"(?i)\b(select|insert|update|delete|create|alter|drop)\b", src
+        )[:80]
+
+    signal = re.compile(
+        r"fetch\s*\(|axios\.|\.from\s*\(|payment|stripe|clerk|auth|"
+        r"neon\(|sql\s*|MapView|Location\.|router\.(?:push|replace)|"
+        r"onPress|onClick|export\s+(?:async\s+)?(?:function|const)\s+(?:GET|POST|PUT|PATCH|DELETE)",
+        re.I
+    )
+    for number, line in enumerate(src.splitlines(), 1):
+        if signal.search(line):
+            compact = line.strip()
+            if compact and len(compact) <= 240:
+                out["evidence_snippets"].append(f"L{number}: {compact}")
+            if len(out["evidence_snippets"]) >= 24:
+                break
+
+    for key in ("routes", "tables", "api_handlers", "api_calls", "database_operations",
+                "integrations", "environment_variables", "ui_actions"):
+        out[key] = sorted(set(out[key]))[:80]
+    return out
 
 def _strip_json_comments(source):
     """Remove // and /* */ comments while preserving comment-like text in strings."""
