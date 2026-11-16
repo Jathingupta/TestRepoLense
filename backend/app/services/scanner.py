@@ -84,6 +84,8 @@ def facts_text(path, src):
             for part in Path(path).parts:
                 if re.fullmatch(r"\([^/]+\)", part):
                     continue
+                if part.lower() in {"app", "src"} and not route_parts:
+                    continue
                 if re.search(r"\+api\.[^.]+$", part, re.I):
                     part = re.sub(r"\+api\.[^.]+$", "", part, flags=re.I)
                 elif re.fullmatch(r"api\.[cm]?[jt]sx?", part, re.I):
@@ -473,6 +475,26 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
             found.append({"path": relpath, "language": ext, "bytes": size, "facts": facts})
 
     dependency_graph = build_dependency_graph(found, manifests)
+    all_imports = sorted(imports)
+    alias_patterns = [
+        pattern for config in _load_ts_configs(manifests)
+        for pattern in config.get("paths", {})
+    ]
+    asset_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico",
+                        ".ttf", ".otf", ".woff", ".woff2", ".mp4", ".mov", ".pdf"}
+    asset_imports = sorted({
+        value for value in all_imports
+        if Path(value.split("?", 1)[0]).suffix.lower() in asset_extensions
+    })
+    local_imports = sorted({
+        value for value in all_imports
+        if value.startswith((".", "~/", "@/"))
+        or value.startswith("#")
+        or any(value == pattern or (
+            "*" in pattern and value.startswith(pattern.split("*", 1)[0])
+        ) for pattern in alias_patterns)
+    })
+    external_imports = sorted(set(all_imports) - set(asset_imports) - set(local_imports))
     return {
         "file_count": len(found),
         "total_bytes_scanned": total,
@@ -481,7 +503,10 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
         "repository_tree": "\n".join(tree[:200]),
         "files": found,
         "manifests": manifests,
-        "imports": sorted(imports)[:150],
+        "imports": all_imports[:150],
+        "external_imports": external_imports[:150],
+        "local_imports": local_imports[:150],
+        "asset_imports": asset_imports[:100],
         "routes": sorted(routes)[:120],
         "database_tables": sorted(tables)[:120],
         "classes": sorted(classes)[:150],
