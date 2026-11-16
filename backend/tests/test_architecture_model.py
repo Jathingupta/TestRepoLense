@@ -64,7 +64,8 @@ def test_diagram_uses_semantic_components_and_relationships():
     assert "Ride service" in output
     assert "requests ride (inferred)" in output
     assert "imports:" not in output
-    assert "flow: Book ride" in output
+    assert "flow:" not in output
+    assert "LIMIT" in output
 
 
 def test_validate_architecture_requires_evidence_for_components():
