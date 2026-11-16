@@ -81,28 +81,25 @@ def test_validate_architecture_requires_evidence_for_components():
 
 def test_diagram_limits_relationship_edges_for_readability():
     model = sample_model()
-    model["components"].append({
-        "id": "second_service",
-        "name": "Second service",
-        "layer": "application",
-        "description": "Another service",
-        "evidence_paths": ["app/api/ride.ts"],
-    })
-    model["relationships"] = []
-    for index in range(25):
+    for index in range(20):
+        model["components"].append({
+            "id": f"service_{index}",
+            "name": f"Service {index}",
+            "layer": "application",
+            "description": "Another service",
+            "evidence_paths": ["app/api/ride.ts"],
+        })
         model["relationships"].append({
             "source": "booking_screen",
-            "target": "ride_service" if index % 2 == 0 else "second_service",
+            "target": f"service_{index}",
             "type": "calls",
             "label": f"relationship {index}",
-            "evidence_paths": ["app/screens/BookRide.tsx", "app/services/ride.ts"]
-                if index % 2 == 0
-                else ["app/screens/BookRide.tsx", "app/api/ride.ts"],
+            "evidence_paths": ["app/screens/BookRide.tsx", "app/api/ride.ts"],
             "confidence": "high",
         })
 
     validated = validate_architecture(model, sample_scan())
     output = diagram(validated, sample_scan())
 
-    assert output.count("-->") <= 2
+    assert output.count("-->") == 16
     assert "simplified subset" in output
