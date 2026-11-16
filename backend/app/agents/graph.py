@@ -332,142 +332,155 @@ def technology_stack_lines(scan):
     ]
 
 
-def make_tdd(repo, scan, architecture):
+def _md_table(headers, rows):
+    def cell(value):
+        return str(value if value not in (None, "") else "—").replace("|", "\\|").replace("\n", " ")
+    output = [
+        "| " + " | ".join(cell(value) for value in headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    output.extend("| " + " | ".join(cell(value) for value in row) + " |" for row in rows)
+    return output
 
+
+def make_tdd(repo, scan, architecture):
+    files = {item.get("path"): item for item in scan.get("files", [])}
     lines = [
         "# Technical Design Document",
         "## 1. Executive summary",
-        architecture.get("summary", ""),
+        architecture.get("summary", "Architecture summary not available from static analysis."),
         "## 2. Scope and method",
-        (
-            f"Static inspection covered {scan['file_count']} files "
-            f"and {scan['total_bytes_scanned']} bytes. "
-            "Source code was not executed."
-        ),
-        "## 3. Technology stack"
-    ]
-
-    lines += technology_stack_lines(scan)
-
-    lines += [
+        (f"Static inspection covered {scan.get('file_count', 0)} files and "
+         f"{scan.get('total_bytes_scanned', 0)} bytes. Source code was not executed. "
+         "Relationships are labelled as static evidence or inference."),
+        "## 3. Technology stack",
+        *technology_stack_lines(scan),
         "## 4. Repository structure",
-        "```text",
+        "Repository tree:",
         scan.get("repository_tree", "Not detected."),
-        "```",
         "## 5. Architecture",
-        "### Components"
+        "### Components",
     ]
 
-    for layer in architecture.get("layers", []):
-        lines.append(f"### {layer.get('name', 'Architecture layer')}")
-        if layer.get("description"):
-            lines.append(layer["description"])
-        members = [item for item in architecture.get("components", [])
-                   if item.get("layer") == layer.get("id")]
-        lines += [
-            f"- **{item.get('name', 'Component')}** ({item.get('type', 'component')}): "
-            f"{item.get('description', '')} "
-            f"(evidence: {', '.join(item.get('evidence_paths', []))})"
-            for item in members
-        ]
+    component_rows = [[
+        item.get("name"), item.get("layer"), item.get("description"),
+        ", ".join(item.get("evidence_paths", [])),
+    ] for item in architecture.get("components", [])]
+    lines.extend(_md_table(
+        ["Component", "Layer", "Responsibility", "Evidence files"], component_rows
+    ) if component_rows else ["- No components met the evidence threshold."])
 
-    lines += ["### Relationships"]
-    lines += [
-        f"- **{item.get('source')} → {item.get('target')}** "
-        f"({item.get('label', item.get('type'))}; confidence: {item.get('confidence')}). "
-        f"Evidence: {', '.join(item.get('evidence_paths', []))}. {item.get('basis', '')}"
-        for item in architecture.get("relationships", [])
-    ] or ["- No cross-component relationships met the evidence threshold."]
+    lines.append("### Relationships")
+    relationship_rows = [[
+        item.get("source"), item.get("target"), item.get("label", item.get("type")),
+        item.get("confidence", "unknown"), ", ".join(item.get("evidence_paths", [])),
+    ] for item in architecture.get("relationships", [])]
+    lines.extend(_md_table(
+        ["Source", "Target", "Relationship", "Confidence", "Evidence files"], relationship_rows
+    ) if relationship_rows else ["- No cross-component relationships met the evidence threshold."])
 
-    lines += ["### Flows"]
-    lines += [
-        f"- **{flow.get('name', 'Application flow')}**: "
-        f"{flow.get('description', '')} "
-        f"Steps: {' → '.join(flow.get('steps', []))}. "
-        f"Evidence: {', '.join(flow.get('evidence_paths', []))}."
-        for flow in architecture.get("flows", [])
-    ] or ["- No end-to-end flow met the evidence threshold."]
+    lines.append("### User and system workflows")
+    flow_rows = [[
+        flow.get("name"), flow.get("description"), " → ".join(flow.get("steps", [])),
+        ", ".join(flow.get("evidence_paths", [])),
+    ] for flow in architecture.get("flows", [])]
+    lines.extend(_md_table(
+        ["Workflow", "Description", "Steps", "Evidence files"], flow_rows
+    ) if flow_rows else ["- No end-to-end flow met the evidence threshold."])
 
     dependency_graph = scan.get("dependency_graph", {})
     lines += [
         "## 6. Module dependency relationships",
-        dependency_graph.get(
-            "relationship_scope",
-            "Repository-local relationships were not available."
-        ),
+        dependency_graph.get("relationship_scope", "Repository-local relationships were not available."),
     ]
     dependency_edges = dependency_graph.get("edges", [])
-    if dependency_edges:
-        lines += [
-            f"- `{edge['source']}` imports `{edge['target']}` "
-            f"(evidence: `{edge['evidence']}`)."
-            for edge in dependency_edges[:100]
-        ]
-    else:
-        lines.append("- No repository-local import relationships were resolved.")
+    lines.extend([
+        f"- {edge['source']} imports {edge['target']} (import: {edge['evidence']})."
+        for edge in dependency_edges[:100]
+    ] or ["- No repository-local import relationships were resolved."])
+
     unresolved = dependency_graph.get("unresolved_local_imports", [])
     if unresolved:
-        lines.append("### Unresolved local import candidates")
-        lines += [
-            f"- `{item['source']}`: `{item['import']}`"
+        lines += ["### Unresolved local module imports"]
+        lines.extend([
+            f"- {item['source']}: {item['import']} ({item.get('reason', 'unresolved')})"
             for item in unresolved[:50]
+        ])
+
+    lines += ["## 7. API surface"]
+    endpoint_rows = [[
+        endpoint.get("method"), endpoint.get("route"), endpoint.get("path"),
+        ", ".join(endpoint.get("request_fields", [])) or "Not statically identified",
+        ", ".join(endpoint.get("response_patterns", [])) or "Not statically identified",
+    ] for endpoint in scan.get("api_endpoints", [])]
+    lines.extend(_md_table(
+        ["Method", "Route", "Source file", "Detected request fields", "Response pattern"],
+        endpoint_rows
+    ) if endpoint_rows else ["- API handlers were not detected from static analysis."])
+
+    lines += ["## 8. Data layer"]
+    data_rows = []
+    for table in scan.get("database_tables", []):
+        evidence = []
+        operations = set()
+        for path, item in files.items():
+            facts = item.get("facts", {})
+            if table in facts.get("tables", []):
+                evidence.append(path)
+                operations.update(facts.get("database_operations", []))
+        data_rows.append([table, ", ".join(sorted(operations)) or "Not identified",
+                          ", ".join(evidence) or "Evidence path not available"])
+    lines.extend(_md_table(
+        ["Table or entity", "Detected database operations", "Evidence files"], data_rows
+    ) if data_rows else ["- No database table names were confidently identified."])
+    lines.append("Column-level schema details are included only when explicit schema or migration evidence is detected.")
+
+    lines += ["## 9. External integrations"]
+    integration_rows = []
+    for integration in scan.get("integrations", []):
+        evidence = [
+            path for path, item in files.items()
+            if integration in item.get("facts", {}).get("integrations", [])
         ]
+        integration_rows.append([integration, ", ".join(evidence)])
+    lines.extend(_md_table(
+        ["Integration", "Source evidence"], integration_rows
+    ) if integration_rows else ["- No external integrations were detected in source files."])
 
-    sections = [
-        ("7. API surface", "routes"),
-        ("8. Data layer", "database_tables"),
-        ("9. External imports", "imports")
+    lines += ["## 10. External package imports"]
+    package_imports = scan.get("external_imports", [])
+    lines.extend([f"- {item}" for item in package_imports[:100]]
+                 or ["- No external package imports were identified."])
+    if scan.get("asset_imports"):
+        lines += ["### Asset imports (not external packages)"]
+        lines.extend([f"- {item}" for item in scan["asset_imports"][:60]])
+
+    lines += [
+        "## 11. Code inventory",
+        "- Classes: " + (", ".join(scan.get("classes", [])[:60]) or "Not detected"),
+        "- Functions: " + (", ".join(scan.get("functions", [])[:80]) or "Not detected"),
+        "## 12. Configuration and deployment",
     ]
-
-    for title, key in sections:
-        lines += ["## " + title]
-
-        lines += [
-            f"- `{item}`"
-            for item in scan.get(key, [])[:80]
-        ]
-
-        if not scan.get(key):
-            lines.append("- Not detected from static analysis.")
-
+    lines.extend([f"- {item}" for item in scan.get("manifests", {})]
+                 or ["- No common manifests detected."])
     lines += [
-        "## 10. Code inventory",
-        "- Classes: " + (
-            ", ".join(scan.get("classes", [])[:60])
-            or "Not detected"
-        ),
-        "- Functions: " + (
-            ", ".join(scan.get("functions", [])[:80])
-            or "Not detected"
-        ),
-        "## 11. Configuration and deployment"
-    ]
-
-    lines += [
-        f"- `{item}`"
-        for item in scan.get("manifests", {})
-    ] or ["- No common manifests detected."]
-
-    lines += [
+        "- Environment variables referenced in source: "
+        + (", ".join(scan.get("environment_variables", [])) or "Not detected"),
         "Deployment topology: Not detected from static analysis.",
-        "## 12. Security and operations",
-        "- Review authentication, authorization, logging, monitoring, backups and dependency vulnerabilities.",
-        "- Rotate credentials accidentally committed to source control.",
-        "## 13. Risks and limitations"
+        "## 13. Security and operations",
+        "- Static analysis does not prove that authentication, authorization, secrets handling, logging, monitoring or backups are correctly configured.",
+        "- Review dependency vulnerabilities and ensure credentials are stored outside source control.",
+        "## 14. Risks and limitations",
     ]
-
+    lines.extend([f"- {risk}" for risk in architecture.get("risks", [])]
+                 or ["- No additional source-backed risks were identified by the architecture model."])
     lines += [
-        f"- {risk}"
-        for risk in architecture.get("risks", [])
+        "- Static scanning may miss dynamic imports, indirect calls, runtime routes and infrastructure outside the repository.",
+        "- A resolved import is evidence of module dependency, not proof of runtime execution.",
+        "## 15. Metrics",
+        f"- Files inspected: {scan.get('file_count', 0)}",
+        f"- Scan truncated: {scan.get('truncated', False)}",
     ]
-
-    lines += [
-        "- Static scanning may miss dynamic imports, runtime routes and external infrastructure.",
-        "## 14. Metrics",
-        f"- Files inspected: {scan['file_count']}",
-        f"- Scan truncated: {scan['truncated']}"
-    ]
-
     return "\n".join(lines)
 
 
@@ -476,73 +489,9 @@ def make_tdd(repo, scan, architecture):
 # --------------------------------------------------
 
 def documentation_agent(state):
-
-    llm = llm_client() if state.get("llm_used") else None
-
-    if llm:
-        scan = state["scan"]
-
-        keys = (
-            "languages",
-            "repository_tree",
-            "manifests",
-            "routes",
-            "api_handlers",
-            "api_calls",
-            "database_tables",
-            "integrations",
-            "environment_variables",
-            "imports",
-            "dependency_graph"
-        )
-
-        evidence = {
-            key: scan.get(key)
-            for key in keys
-        }
-        evidence["file_level_behavior"] = _architecture_evidence(scan)
-
-        prompt = (
-            "Write a complete, evidence-led Markdown technical design document. Explain the "
-            "actual product capabilities and user workflows, not just folders, classes or object "
-            "names. For each capability, describe the user action, UI entry point, API handler, "
-            "service logic, external provider and data read/write path when the supplied evidence "
-            "supports each link. Include concrete API methods/routes, database tables/operations, "
-            "authentication/payment/maps integrations and configuration variables. Use concise "
-            "Markdown tables for component responsibilities, API surface, data entities and "
-            "external integrations; include evidence file paths in each row. Distinguish confirmed "
-            "static evidence from inferred runtime sequence, and explicitly mark unknown details. "
-            "Include summary, scope, technology stack, architecture, workflows, APIs, data, "
-            "dependencies, configuration, security, deployment, operations and limitations. "
-            "Include a dedicated module dependency section using dependency_graph edges and list "
-            "unresolved local imports separately. Do not describe import edges as proof of runtime calls.\n\n"
-            "Use only the supplied evidence. Mark unknowns as "
-            "'Not detected from static analysis'. Never fabricate.\n\n"
-            f"Repository: {state['repository']}\n\n"
-            f"Architecture:\n{json.dumps(state['architecture'])}\n\n"
-            f"Evidence:\n{json.dumps(evidence, ensure_ascii=False)[:18000]}"
-        )
-
-        try:
-            message = llm.invoke([
-                SystemMessage(
-                    content="You write precise engineering design documents."
-                ),
-                HumanMessage(content=prompt)
-            ])
-
-            document = (
-                message.content
-                if isinstance(message.content, str)
-                else str(message.content)
-            )
-
-            if len(document) > 150:
-                return {"tdd": document}
-
-        except Exception as error:
-            print(f"Documentation agent failed: {error}")
-
+    # Build report sections deterministically from validated architecture and
+    # scanner evidence. LLM-generated prose previously omitted structured API
+    # and data details and could silently drop Markdown tables.
     return {
         "tdd": make_tdd(
             state["repository"],
@@ -550,7 +499,6 @@ def documentation_agent(state):
             state["architecture"]
         )
     }
-
 
 # --------------------------------------------------
 # 8. VALIDATION AGENT
