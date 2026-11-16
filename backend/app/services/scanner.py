@@ -55,6 +55,7 @@ def facts_text(path, src):
         "api_handlers": [], "api_calls": [], "database_operations": [],
         "integrations": [], "environment_variables": [], "ui_actions": [],
         "evidence_snippets": [],
+        "api_endpoints": [],
     }
     suffix = path.suffix.lower()
     if suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
@@ -64,7 +65,17 @@ def facts_text(path, src):
             r"\bimport\s*\(\s*['\"]([^'\"]+)['\"]\s*\)",
             r"\brequire\s*\(\s*['\"]([^'\"]+)['\"]\s*\)",
         ]
-        out["imports"] = sorted({match for pattern in patterns for match in re.findall(pattern, src)})[:150]
+        import_patterns = [
+            r"^\\s*import\\s+(?:[^;\\n]*?\\s+from\\s*)?['\\"]([^'\\"]+)['\\"]",
+            r"^\\s*export\\s+[^;\\n]*?\\s+from\\s*['\\"]([^'\\"]+)['\\"]",
+            r"\\bimport\\s*\\(\\s*['\\"]([^'\\"]+)['\\"]\\s*\\)",
+            r"\\brequire\\s*\\(\\s*['\\"]([^'\\"]+)['\\"]\\s*\\)",
+        ]
+        out["imports"] = sorted({
+            match
+            for pattern in import_patterns
+            for match in re.findall(pattern, src, re.MULTILINE)
+        })[:150]
         out["classes"] = re.findall(r"\bclass\s+([A-Za-z_$][\w$]*)", src)[:100]
         out["functions"] = re.findall(r"\bfunction\s+([A-Za-z_$][\w$]*)", src)[:100]
         out["routes"] = re.findall(r"\.(?:get|post|put|patch|delete)\s*\(\s*['\"]([^'\"]+)", src, re.I)[:100]
@@ -137,6 +148,7 @@ def facts_text(path, src):
     for key in ("routes", "tables", "api_handlers", "api_calls", "database_operations",
                 "integrations", "environment_variables", "ui_actions"):
         out[key] = sorted(set(out[key]))[:80]
+    out["api_endpoints"] = out.get("api_endpoints", [])
     return out
 
 def _strip_json_comments(source):
@@ -375,6 +387,7 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
     langs = Counter()
     imports, routes, tables, classes, functions = set(), set(), set(), set(), set()
     api_handlers, api_calls, integrations, env_vars = set(), set(), set(), set()
+    api_endpoints = []
     total = 0
     tree = []
 
@@ -419,6 +432,7 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
             api_calls.update(facts.get("api_calls", []))
             integrations.update(facts.get("integrations", []))
             env_vars.update(facts.get("environment_variables", []))
+            api_endpoints.extend(facts.get("api_endpoints", []))
             found.append({"path": relpath, "language": ext, "bytes": size, "facts": facts})
 
     dependency_graph = build_dependency_graph(found, manifests)
@@ -437,6 +451,7 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
         "functions": sorted(functions)[:200],
         "api_handlers": sorted(api_handlers),
         "api_calls": sorted(api_calls),
+        "api_endpoints": sorted(api_endpoints, key=lambda item: (item["route"], item["method"], item["path"])),
         "integrations": sorted(integrations),
         "environment_variables": sorted(env_vars),
         "dependency_graph": dependency_graph,
