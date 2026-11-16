@@ -152,56 +152,62 @@ def fallback_architecture(repo, scan):
 
 
 def diagram(architecture, scan):
-    """Render semantic components and validated relationships as layered Mermaid."""
+    """Render a compact overview; detailed evidence remains in report tables."""
     layers = architecture.get("layers", [])
     components = architecture.get("components", [])
     relationships = architecture.get("relationships", [])
     if not components:
         return 'flowchart LR\n    EMPTY["No components with scanned source evidence were identified."]'
+
     lines = [
         "flowchart LR",
         "    classDef component fill:#eaf2ff,stroke:#4778b8,color:#172b4d;",
         "    classDef external fill:#f3e8ff,stroke:#8b5cf6,color:#3b0764;"
     ]
-    valid_ids = {c["id"] for c in components}
+    valid_ids = {component["id"] for component in components}
     for layer in layers:
-        members = [c for c in components if c["layer"] == layer["id"]]
+        members = [component for component in components if component["layer"] == layer["id"]]
         if not members:
             continue
         lines.append(f'    subgraph {_id(layer["id"])}["{_label(layer["name"])}"]')
-        for c in members:
-            desc = _label(c.get("description", ""))
-            paths = ", ".join(Path(p).name for p in c.get("evidence_paths", [])[:2])
-            label = _label(c["name"])
-            if desc:
-                label += "<br/><small>" + desc + "</small>"
-            if paths:
-                label += "<br/><i>" + _label(paths) + "</i>"
-            style = "external" if c.get("external") else "component"
-            lines.append(f'        {_id(c["id"])}["{label}"]:::{style}')
+        for component in members:
+            description = _label(component.get("description", ""))
+            if len(description) > 78:
+                description = description[:75] + "..."
+            label = _label(component["name"])
+            if description:
+                label += "<br/><small>" + description + "</small>"
+            style = "external" if component.get("external") else "component"
+            lines.append(f'        {_id(component["id"])}["{label}"]:::{style}')
         lines.append("    end")
-    edge_index = 0
-    for r in relationships:
-        if r.get("source") not in valid_ids or r.get("target") not in valid_ids:
+
+    # Prefer source-backed relationships and avoid drawing duplicate pairs.
+    ranked = sorted(
+        relationships,
+        key=lambda relation: (
+            {"high": 0, "medium": 1, "inferred": 2}.get(relation.get("confidence"), 3),
+            relation.get("source", ""),
+            relation.get("target", ""),
+        )
+    )
+    drawn_pairs = set()
+    for relation in ranked:
+        source, target = relation.get("source"), relation.get("target")
+        if source not in valid_ids or target not in valid_ids or source == target:
             continue
-        label = _label(r.get("label") or r.get("type") or "depends on")
-        if r.get("confidence") == "inferred":
+        if (source, target) in drawn_pairs or len(drawn_pairs) >= 16:
+            continue
+        drawn_pairs.add((source, target))
+        label = _label(relation.get("label") or relation.get("type") or "depends on")
+        if relation.get("confidence") == "inferred":
             label += " (inferred)"
-        lines.append(f'    {_id(r["source"])} -->|{label}| {_id(r["target"])}')
-        edge_index += 1
-    flow_edges = set()
-    for flow in architecture.get("flows", []):
-        steps = [step for step in flow.get("steps", []) if step in valid_ids]
-        for source, target in zip(steps, steps[1:]):
-            if source == target or (source, target) in flow_edges:
-                continue
-            flow_edges.add((source, target))
-            lines.append(
-                f'    {_id(source)} -.->|flow: {_label(flow.get("name", "workflow"))}| {_id(target)}'
-            )
-    if not edge_index and not flow_edges:
+        lines.append(f'    {_id(source)} -->|{label}| {_id(target)}')
+
+    if not drawn_pairs:
         lines.append('    NOTE["No cross-component relationships met the evidence threshold."]')
-    lines.append('    LIMIT["Relationships cite scanned files; inferred runtime behavior is labelled."]')
+    elif len(relationships) > len(drawn_pairs):
+        lines.append('    NOTE["Diagram shows a simplified subset; see relationship table for full evidence."]')
+    lines.append('    LIMIT["Inferred runtime relationships are labelled; static import edges are not runtime proof."]')
     return "\n".join(lines)
 
 
