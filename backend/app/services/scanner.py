@@ -59,17 +59,11 @@ def facts_text(path, src):
     }
     suffix = path.suffix.lower()
     if suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
-        patterns = [
-            r"\bfrom\s*['\"]([^'\"]+)['\"]",
-            r"\bimport\s*['\"]([^'\"]+)['\"]",
+        import_patterns = [
+            r"^\s*import\s+(?:[^;\n]*?\s+from\s*)?['\"]([^'\"]+)['\"]",
+            r"^\s*export\s+[^;\n]*?\s+from\s*['\"]([^'\"]+)['\"]",
             r"\bimport\s*\(\s*['\"]([^'\"]+)['\"]\s*\)",
             r"\brequire\s*\(\s*['\"]([^'\"]+)['\"]\s*\)",
-        ]
-        import_patterns = [
-            r"^\\s*import\\s+(?:[^;\\n]*?\\s+from\\s*)?['\\"]([^'\\"]+)['\\"]",
-            r"^\\s*export\\s+[^;\\n]*?\\s+from\\s*['\\"]([^'\\"]+)['\\"]",
-            r"\\bimport\\s*\\(\\s*['\\"]([^'\\"]+)['\\"]\\s*\\)",
-            r"\\brequire\\s*\\(\\s*['\\"]([^'\\"]+)['\\"]\\s*\\)",
         ]
         out["imports"] = sorted({
             match
@@ -80,12 +74,41 @@ def facts_text(path, src):
         out["functions"] = re.findall(r"\bfunction\s+([A-Za-z_$][\w$]*)", src)[:100]
         out["routes"] = re.findall(r"\.(?:get|post|put|patch|delete)\s*\(\s*['\"]([^'\"]+)", src, re.I)[:100]
 
-        # Expo Router and Next-style file routes, including method-export handlers.
-        if re.search(r"(^|/)\+?api\.(?:[cm]?[jt]sx?)$", path.as_posix(), re.I) or "/(api)/" in path.as_posix():
-            out["routes"].append("file route: " + path.as_posix())
-        for method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
-            if re.search(r"\bexport\s+(?:async\s+)?(?:function|const)\s+" + method + r"\b", src):
-                out["api_handlers"].append(method)
+        # Expo Router API files: strip route groups and the +api suffix.
+        api_file = bool(
+            re.search(r"(?:^|/)\+?api\.[cm]?[jt]sx?$", path.as_posix(), re.I)
+            or re.search(r"(?:^|/)\(api\)/", path.as_posix())
+        )
+        if api_file:
+            route_parts = []
+            for part in Path(path).parts:
+                if re.fullmatch(r"\([^/]+\)", part):
+                    continue
+                if re.search(r"\+api\.[^.]+$", part, re.I):
+                    part = re.sub(r"\+api\.[^.]+$", "", part, flags=re.I)
+                elif re.fullmatch(r"api\.[cm]?[jt]sx?", part, re.I):
+                    part = ""
+                if part:
+                    route_parts.append(part)
+            route = "/" + "/".join(route_parts)
+            route = re.sub(r"/+", "/", route).rstrip("/") or "/"
+            out["routes"].append(route)
+            for method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+                if re.search(r"\bexport\s+(?:async\s+)?(?:function|const)\s+" + method + r"\b", src):
+                    out["api_handlers"].append(method)
+                    request_fields = sorted(set(
+                        re.findall(r"\b(?:body|data|params|searchParams)\.([A-Za-z_$][\w$]*)", src)
+                    ))[:30]
+                    response_patterns = sorted(set(re.findall(
+                        r"(Response\.json|NextResponse\.json|NextResponse\.redirect)", src
+                    )))[:10]
+                    out["api_endpoints"].append({
+                        "method": method,
+                        "route": route,
+                        "path": path.as_posix(),
+                        "request_fields": request_fields,
+                        "response_patterns": response_patterns,
+                    })
 
         out["api_calls"] = re.findall(
             r"\b(fetch|axios\.(?:get|post|put|patch|delete)|client\.(?:get|post|put|patch|delete))\s*\(",
@@ -94,10 +117,24 @@ def facts_text(path, src):
         out["database_operations"] = re.findall(
             r"\b(sql|db|database|prisma|supabase|drizzle)\s*\.", src, re.I
         )[:40]
-        out["tables"] = re.findall(
-            r"(?:\.from\s*\(\s*['\"]|(?:FROM|JOIN|INTO|UPDATE)\s+)([A-Za-z_][A-Za-z0-9_.]*)",
+        # Capture explicit table APIs and SQL statements only.
+        table_names = re.findall(
+            r"\.from\s*\(\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\s*\)",
             src, re.I
-        )[:80]
+        )
+        sql_blocks = re.findall(
+            r"\x60([^\x60]*(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)[^\x60]*)\x60",
+            src, re.I
+        )
+        for sql in sql_blocks:
+            table_names.extend(re.findall(
+                r"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+([A-Za-z_][A-Za-z0-9_]*)",
+                sql, re.I
+            ))
+        out["tables"] = sorted(set(
+            name for name in table_names
+            if name.lower() not in {"package", "package_json", "auto", "json"}
+        ))[:80]
 
         integration_patterns = {
             "Clerk authentication": r"@clerk/|useAuth\b|useUser\b|ClerkProvider|auth\(\)",
