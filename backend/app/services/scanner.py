@@ -56,6 +56,7 @@ def facts_text(path, src):
         "integrations": [], "environment_variables": [], "ui_actions": [],
         "evidence_snippets": [],
         "api_endpoints": [],
+        "api_call_details": [],
     }
     suffix = path.suffix.lower()
     if suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
@@ -116,8 +117,24 @@ def facts_text(path, src):
             r"\b(fetch|axios\.(?:get|post|put|patch|delete)|client\.(?:get|post|put|patch|delete))\s*\(",
             src
         )[:40]
+        for match in re.finditer(
+            r"\bfetch\s*\(\s*['\"]([^'\"]+)['\"]\s*(?:,\s*\{([^}]*)\})?",
+            src, re.I | re.S
+        ):
+            options = match.group(2) or ""
+            method = re.search(r"\bmethod\s*:\s*['\"](GET|POST|PUT|PATCH|DELETE)['\"]", options, re.I)
+            out["api_call_details"].append({
+                "method": method.group(1).upper() if method else "GET",
+                "url": match.group(1),
+            })
+        for method, url in re.findall(
+            r"\baxios\.(get|post|put|patch|delete)\s*\(\s*['\"]([^'\"]+)['\"]",
+            src, re.I
+        ):
+            out["api_call_details"].append({"method": method.upper(), "url": url})
+        out["api_call_details"] = out["api_call_details"][:60]
         out["database_operations"] = re.findall(
-            r"\b(sql|db|database|prisma|supabase|drizzle)\s*\.", src, re.I
+            r"\.(select|insert|update|delete|upsert|execute|query)\s*\(", src, re.I
         )[:40]
         # Capture explicit table APIs and SQL statements only.
         table_names = re.findall(
@@ -129,6 +146,9 @@ def facts_text(path, src):
             src, re.I
         )
         for sql in sql_blocks:
+            out["database_operations"].extend(re.findall(
+                r"\b(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b", sql, re.I
+            ))
             table_names.extend(re.findall(
                 r"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+([A-Za-z_][A-Za-z0-9_]*)",
                 sql, re.I
@@ -520,6 +540,10 @@ def scan_repository(repo, max_files, max_file_bytes, max_total_bytes, include_te
         "api_handlers": sorted(api_handlers),
         "api_calls": sorted(api_calls),
         "api_endpoints": sorted(api_endpoints, key=lambda item: (item["route"], item["method"], item["path"])),
+        "api_call_details": [
+            {"source": item["path"], **call}
+            for item in found for call in item["facts"].get("api_call_details", [])
+        ],
         "integrations": sorted(integrations),
         "environment_variables": sorted(env_vars),
         "dependency_graph": dependency_graph,
