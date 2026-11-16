@@ -230,7 +230,7 @@ def render_docx(markdown, output, repository="Repository", diagram_png=None):
         document.add_heading("Architecture diagram", level=1)
         document.add_picture(str(diagram_png), width=Inches(6.4))
         document.add_paragraph(
-            "Relationships shown are limited to repository-local imports resolved by static analysis.",
+            "Simplified architecture overview. See relationship and workflow tables for evidence paths and confidence labels.",
             style="Caption",
         )
         document.add_page_break()
