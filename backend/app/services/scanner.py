@@ -307,6 +307,7 @@ def _resolve_import_candidates(source_path, import_name, language, ts_configs):
         candidates.append(base)
         for extension in JS_EXTENSIONS:
             candidates.append(base + extension)
+        candidates.append(base + ".d.ts")
         for extension in JS_EXTENSIONS:
             candidates.append((Path(base) / ("index" + extension)).as_posix())
         # CommonJS/TypeScript projects frequently omit JSON extensions in imports.
@@ -365,6 +366,11 @@ def build_dependency_graph(files, manifests=None):
         source = item["path"]
         language = item["language"]
         for import_name in item["facts"].get("imports", []):
+            if Path(import_name.split("?", 1)[0]).suffix.lower() in {
+                ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico",
+                ".ttf", ".otf", ".woff", ".woff2", ".mp4", ".mov", ".pdf",
+            }:
+                continue
             targets = _resolve_import_candidates(source, import_name, language, ts_configs)
             resolved = []
             for candidate in targets:
